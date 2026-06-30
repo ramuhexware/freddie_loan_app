@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema attributeFormDefault="unqualified"
+        elementFormDefault="qualified"
+        targetNamespace="http://xmlns.oracle.com/FreddieApp/LoanApprovalProcess"
+        xmlns="http://www.w3.org/2001/XMLSchema">
+
+    <element name="LoanApprovalRequest">
+        <complexType>
+            <sequence>
+                <element name="loanId" type="string"/>
+                <element name="customerId" type="string"/>
+                <element name="customerName" type="string"/>
+                <element name="loanAmount" type="decimal"/>
+                <element name="propertyValue" type="decimal"/>
+                <element name="creditScore" type="int"/>
+                <element name="annualIncome" type="decimal"/>
+                <element name="monthlyDebt" type="decimal"/>
+            </sequence>
+        </complexType>
+    </element>
+
+    <element name="LoanApprovalResponse">
+        <complexType>
+            <sequence>
+                <element name="loanId" type="string"/>
+                <element name="approved" type="boolean"/>
+                <element name="interestRate" type="decimal"/>
+                <element name="riskLevel" type="string"/>
+                <element name="decisionReason" type="string"/>
+                <element name="orchestrationStatus" type="string"/>
+                <element name="timestamp" type="dateTime"/>
+            </sequence>
+        </complexType>
+    </element>
+
+</schema>

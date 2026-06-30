@@ -1,0 +1,35 @@
+package com.freddieapp.legacyadapter.controller;
+
+import com.freddieapp.legacyadapter.client.LegacySoapClient;
+import com.freddieapp.legacyadapter.client.LegacySoapClient.LoanEligibilityResult;
+import com.freddieapp.legacyadapter.client.LegacySoapClient.CustomerVerificationResult;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/v1/legacy")
+@RequiredArgsConstructor
+public class LegacyAdapterController {
+
+    private final LegacySoapClient legacySoapClient;
+
+    @GetMapping("/eligibility")
+    public ResponseEntity<LoanEligibilityResult> checkLoanEligibility(
+            @RequestParam String customerId,
+            @RequestParam BigDecimal loanAmount) {
+        log.info("REST request to check legacy eligibility: customerId={}, amount={}", customerId, loanAmount);
+        return ResponseEntity.ok(legacySoapClient.checkLoanEligibility(customerId, loanAmount));
+    }
+
+    @GetMapping("/verification")
+    public ResponseEntity<CustomerVerificationResult> verifyCustomer(
+            @RequestParam String customerId) {
+        log.info("REST request to verify legacy customer: customerId={}", customerId);
+        return ResponseEntity.ok(legacySoapClient.verifyCustomer(customerId));
+    }
+}

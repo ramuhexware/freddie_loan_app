@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="LegacySoapService"
+             targetNamespace="http://xmlns.oracle.com/FreddieApp/LegacySoapService"
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:tns="http://xmlns.oracle.com/FreddieApp/LegacySoapService"
+             xmlns:plnk="http://docs.oasis-open.org/wsbpel/2.0/plnktype"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+             xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <types>
+        <xs:schema targetNamespace="http://xmlns.oracle.com/FreddieApp/LegacySoapService" elementFormDefault="qualified">
+            <xs:element name="EligibilityRequest">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="loanId" type="xs:string"/>
+                        <xs:element name="customerId" type="xs:string"/>
+                        <xs:element name="loanAmount" type="xs:decimal"/>
+                        <xs:element name="creditScore" type="xs:int"/>
+                        <xs:element name="monthlyDti" type="xs:decimal"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="EligibilityResponse">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="eligible" type="xs:boolean"/>
+                        <xs:element name="baseRate" type="xs:decimal"/>
+                        <xs:element name="comments" type="xs:string"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:schema>
+    </types>
+
+    <message name="EligibilityRequestMessage">
+        <part name="payload" element="tns:EligibilityRequest"/>
+    </message>
+    <message name="EligibilityResponseMessage">
+        <part name="payload" element="tns:EligibilityResponse"/>
+    </message>
+
+    <portType name="LegacySoapPortType">
+        <operation name="checkEligibility">
+            <input message="tns:EligibilityRequestMessage"/>
+            <output message="tns:EligibilityResponseMessage"/>
+        </operation>
+    </portType>
+
+    <binding name="LegacySoapBinding" type="tns:LegacySoapPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <operation name="checkEligibility">
+            <soap:operation soapAction="checkEligibility"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </input>
+        </operation>
+    </binding>
+
+    <service name="LegacySoapService">
+        <port name="LegacySoapPort" binding="tns:LegacySoapBinding">
+            <soap:address location="http://osb-host:7001/osbws/LoanEligibilityService"/>
+        </port>
+    </service>
+
+    <plnk:partnerLinkType name="LegacySoapPartnerLinkType">
+        <plnk:role name="EligibilityServiceProvider" portType="tns:LegacySoapPortType"/>
+    </plnk:partnerLinkType>
+
+</definitions>

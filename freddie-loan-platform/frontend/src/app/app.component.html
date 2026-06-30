@@ -1,0 +1,625 @@
+<!-- LOGIN SCREEN -->
+<div class="login-wrapper" *ngIf="!isLoggedIn">
+  <div class="login-background-glow"></div>
+  <div class="glass-card login-card">
+    <div class="login-header">
+      <i class="fa-solid fa-house-chimney-crack login-logo"></i>
+      <h2>Freddie Mac Mortgage Gateway</h2>
+      <p>Secure Enterprise Loan Lifecycle and Underwriting Portal</p>
+    </div>
+
+    <!-- Role Persona Selectors in Login Page -->
+    <div class="login-role-tabs">
+      <button type="button" class="role-tab-btn" [class.active]="selectedLoginRole === 'Borrower'" (click)="selectLoginRole('Borrower')">
+        <i class="fa-solid fa-user"></i>
+        <span>Borrower</span>
+      </button>
+      <button type="button" class="role-tab-btn" [class.active]="selectedLoginRole === 'Underwriter'" (click)="selectLoginRole('Underwriter')">
+        <i class="fa-solid fa-user-shield"></i>
+        <span>Underwriter</span>
+      </button>
+      <button type="button" class="role-tab-btn" [class.active]="selectedLoginRole === 'LoanOfficer'" (click)="selectLoginRole('LoanOfficer')">
+        <i class="fa-solid fa-user-tie"></i>
+        <span>Loan Officer</span>
+      </button>
+      <button type="button" class="role-tab-btn" [class.active]="selectedLoginRole === 'OpsManager'" (click)="selectLoginRole('OpsManager')">
+        <i class="fa-solid fa-user-gear"></i>
+        <span>Ops Manager</span>
+      </button>
+      <button type="button" class="role-tab-btn" [class.active]="selectedLoginRole === 'Compliance'" (click)="selectLoginRole('Compliance')">
+        <i class="fa-solid fa-user-check"></i>
+        <span>Compliance</span>
+      </button>
+    </div>
+
+    <form (submit)="handleLogin(); $event.preventDefault()">
+      <div class="form-group">
+        <label>OAuth2 Principal ID / Email</label>
+        <input type="email" class="form-control" [(ngModel)]="loginEmail" name="email" required>
+      </div>
+      <div class="form-group">
+        <label>System Credentials Hash</label>
+        <input type="password" class="form-control" [(ngModel)]="loginPassword" name="password" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block login-submit-btn" [disabled]="isLoggingIn">
+        <span *ngIf="!isLoggingIn"><i class="fa-solid fa-key"></i> Authenticate & Access Gateway</span>
+        <span *ngIf="isLoggingIn"><i class="fa-solid fa-spinner fa-spin animate-spin"></i> Initializing JWT Secure Handshake...</span>
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <span>Authorized Personnel Only. SSO authenticated via Okta / OAuth2 Resource Server.</span>
+    </div>
+  </div>
+</div>
+
+<!-- LOGGED IN WORKSPACE -->
+<div class="dashboard-container" *ngIf="isLoggedIn">
+  <!-- Left Navigation Bar -->
+  <aside class="sidebar">
+    <div class="brand-section">
+      <i class="fa-solid fa-house-chimney-crack brand-icon"></i>
+      <div class="brand-text">
+        <h3>FreddieMac</h3>
+        <span>Home Loan Portal</span>
+      </div>
+    </div>
+
+
+    <nav class="nav-menu">
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="selectTab('dashboard')" *ngIf="activeRole !== 'Borrower'">
+        <i class="fa-solid fa-chart-pie"></i> Dashboard
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'origination'" (click)="selectTab('origination')" *ngIf="activeRole === 'Borrower' || activeRole === 'LoanOfficer'">
+        <i class="fa-solid fa-file-invoice-dollar"></i> Origination Intake
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'borrowerStatus'" (click)="selectTab('borrowerStatus')" *ngIf="activeRole === 'Borrower'">
+        <i class="fa-solid fa-circle-info"></i> My Application Status
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'underwriting'" (click)="selectTab('underwriting')" *ngIf="activeRole === 'Underwriter' || activeRole === 'OpsManager'">
+        <i class="fa-solid fa-shield-halved"></i> Underwriting Rules
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'documents'" (click)="selectTab('documents')">
+        <i class="fa-solid fa-folder-open"></i> Documents (GridFS)
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'servicing'" (click)="selectTab('servicing')">
+        <i class="fa-solid fa-scale-balanced"></i> Loan Servicing
+      </a>
+      <a href="javascript:void(0)" class="nav-item" [class.active]="activeTab === 'compliance'" (click)="selectTab('compliance')" *ngIf="activeRole === 'Compliance' || activeRole === 'OpsManager'">
+        <i class="fa-solid fa-list-check"></i> Compliance & Audits
+      </a>
+    </nav>
+
+    <div class="user-profile-widget" style="margin-top: auto; display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px;">
+      <div class="avatar" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); display: flex; align-items: center; justify-content: center; color: var(--color-primary); font-size: 1.2rem;">
+        <i class="fa-solid fa-user-tie"></i>
+      </div>
+      <div class="user-info" style="flex: 1; display: flex; flex-direction: column;">
+        <span class="user-name" style="font-size: 0.9rem; font-weight: 600;">Client Workspace</span>
+        <span class="user-role" style="font-size: 0.75rem; color: var(--color-muted);">{{ activeRole }} Mode</span>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="handleLogout()" style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content Space -->
+  <main class="main-content">
+    <header class="content-header">
+      <div class="header-title">
+        <h1>Freddie Mac Mortgage Platform</h1>
+        <p class="subtitle">Distributed Domain-driven Loan Lifecycle and Risk Evaluator Portal</p>
+      </div>
+      <div class="system-pills">
+        <span class="sys-pill"><span class="dot green"></span> Eureka Discovery</span>
+        <span class="sys-pill"><span class="dot green"></span> Kafka Broker</span>
+        <span class="sys-pill"><span class="dot green"></span> ActiveMQ</span>
+      </div>
+    </header>
+
+
+    <!-- TAB 1: DASHBOARD -->
+    <section class="tab-pane" *ngIf="activeTab === 'dashboard'">
+      <!-- Stat Cards -->
+      <div class="stats-grid">
+        <div class="glass-card stat-card">
+          <div class="stat-icon blue"><i class="fa-solid fa-file-lines"></i></div>
+          <div class="stat-values">
+            <h3>{{ applications.length }}</h3>
+            <span>Total Intake Applications</span>
+          </div>
+        </div>
+        <div class="glass-card stat-card">
+          <div class="stat-icon yellow"><i class="fa-solid fa-arrows-spin"></i></div>
+          <div class="stat-values">
+            <h3>{{ (applications | filterStatus:'UNDER_REVIEW').length }}</h3>
+            <span>Under Assessment</span>
+          </div>
+        </div>
+        <div class="glass-card stat-card">
+          <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+          <div class="stat-values">
+            <h3>{{ (applications | filterStatus:'APPROVED').length }}</h3>
+            <span>Approved Mortgages</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Application Worklist -->
+      <div class="dashboard-work-grid">
+        <div class="glass-card worklist-container">
+          <h2>Mortgage Intake Worklist</h2>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Application ID</th>
+                  <th>Borrower</th>
+                  <th>Product</th>
+                  <th>Amount</th>
+                  <th>LTV / DTI</th>
+                  <th>Risk Tier</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let app of applications" [class.selected]="selectedApp?.loanId === app.loanId" (click)="selectApp(app)">
+                  <td><strong>{{ app.loanId }}</strong></td>
+                  <td>{{ app.customerName }}</td>
+                  <td>{{ app.loanType }}</td>
+                  <td>{{ app.loanAmount | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>
+                    <span class="ratio-pill">LTV: {{ app.ltvRatio }}%</span>
+                    <span class="ratio-pill">DTI: {{ app.dtiRatio }}%</span>
+                  </td>
+                  <td>
+                    <span class="risk-badge" [class]="app.riskLevel.toLowerCase()">{{ app.riskLevel }}</span>
+                  </td>
+                  <td>
+                    <span class="status-badge" [class]="app.status.toLowerCase()">{{ app.status }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Loan Detail Sidebar Panel -->
+        <div class="glass-card detail-container" *ngIf="selectedApp">
+          <div class="detail-header">
+            <h2>Detail Overview</h2>
+            <span class="loan-id-tag">{{ selectedApp.loanId }}</span>
+          </div>
+          
+          <div class="detail-section">
+            <label>Applicant Profile</label>
+            <p><strong>Name:</strong> {{ selectedApp.customerName }}</p>
+            <p><strong>Customer ID:</strong> {{ selectedApp.customerId }}</p>
+            <p><strong>Credit Score:</strong> <span class="score-display">{{ selectedApp.creditScore }}</span></p>
+          </div>
+
+          <div class="detail-section">
+            <label>Financial Details</label>
+            <p><strong>Loan Amount:</strong> {{ selectedApp.loanAmount | currency:'USD':'symbol':'1.0-0' }}</p>
+            <p><strong>Property Appraisal:</strong> {{ selectedApp.propertyValue | currency:'USD':'symbol':'1.0-0' }}</p>
+            <p><strong>Annual Income:</strong> {{ selectedApp.annualIncome | currency:'USD':'symbol':'1.0-0' }}</p>
+          </div>
+
+          <div class="detail-section">
+            <label>Decision Log & Rules Verification</label>
+            <p class="decision-reason"><em>{{ selectedApp.decisionReason }}</em></p>
+          </div>
+
+          <!-- Quick actions based on role -->
+          <div class="detail-actions" *ngIf="activeRole === 'Underwriter' && selectedApp.status === 'UNDER_REVIEW'">
+            <button class="btn btn-primary" (click)="selectTab('underwriting')">
+              <i class="fa-solid fa-shield-halved"></i> Open Underwriting Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ORIGINATION FORM -->
+    <section class="tab-pane" *ngIf="activeTab === 'origination'">
+      <div class="glass-card origination-card">
+        <h2>Digital Loan Intake Application</h2>
+        <p class="subtitle">Complete the borrower assets, income verification inputs, and desired mortgage structures below.</p>
+
+        <form (submit)="submitApplication(); $event.preventDefault()">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Borrower Full Name</label>
+              <input type="text" class="form-control" [(ngModel)]="formCustomerName" name="customerName" placeholder="e.g. Johnathan Doe" required>
+            </div>
+            <div class="form-group">
+              <label>Customer Identifier (CRM ID)</label>
+              <input type="text" class="form-control" [(ngModel)]="formCustomerId" name="customerId" readonly>
+            </div>
+            <div class="form-group">
+              <label>Mortgage Product Selection</label>
+              <select class="form-control" [(ngModel)]="formLoanType" name="loanType">
+                <option value="Purchase (Fixed 30Y)">Purchase (Fixed 30Y)</option>
+                <option value="Purchase (Fixed 15Y)">Purchase (Fixed 15Y)</option>
+                <option value="Refinance (Floating 15Y)">Refinance (Floating 15Y)</option>
+                <option value="HELOC (Variable)">Home Equity Line of Credit (HELOC)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>FICO Credit Score (Bureau Check)</label>
+              <input type="number" class="form-control" [(ngModel)]="formCreditScore" name="creditScore" min="300" max="850">
+            </div>
+            <div class="form-group">
+              <label>Requested Loan Amount ($)</label>
+              <input type="number" class="form-control" [(ngModel)]="formLoanAmount" name="loanAmount">
+            </div>
+            <div class="form-group">
+              <label>Appraised Property Value ($)</label>
+              <input type="number" class="form-control" [(ngModel)]="formPropertyValue" name="propertyValue">
+            </div>
+            <div class="form-group">
+              <label>Borrower Verified Annual Income ($)</label>
+              <input type="number" class="form-control" [(ngModel)]="formAnnualIncome" name="annualIncome">
+            </div>
+            <div class="form-group">
+              <label>Current Monthly Non-Mortgage Debt ($)</label>
+              <input type="number" class="form-control" [(ngModel)]="formMonthlyDebt" name="monthlyDebt">
+            </div>
+          </div>
+
+          <!-- Dynamic Calculations Box -->
+          <div class="calculations-panel">
+            <h3>Real-time Intake Ratios</h3>
+            <div class="ratios-row">
+              <div class="ratio-item">
+                <span class="label">Loan-to-Value (LTV)</span>
+                <span class="value" [class.danger]="computedLtv > 80">{{ computedLtv }}%</span>
+                <span class="hint">Freddie Mac Standard Limit: 80.00% without PMI</span>
+              </div>
+              <div class="ratio-item">
+                <span class="label">Debt-to-Income (DTI)</span>
+                <span class="value" [class.danger]="computedDti > 45">{{ computedDti }}%</span>
+                <span class="hint">Freddie Mac Standard Limit: 45.00%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-paper-plane"></i> Submit Application to Underwriting
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB: MY APPLICATION STATUS (Borrower Only) -->
+    <section class="tab-pane" *ngIf="activeTab === 'borrowerStatus'">
+      <div class="glass-card origination-card" style="max-width: 900px; margin: 0 auto;">
+        <h2>My Mortgage Application Status</h2>
+        <p class="subtitle">Real-time status tracker of your Freddie Mac home loan application.</p>
+
+        <!-- No Application State -->
+        <div *ngIf="applications.length === 0" style="text-align: center; padding: 40px; color: var(--color-muted);">
+          <i class="fa-solid fa-folder-open" style="font-size: 3rem; margin-bottom: 15px; display: block; color: var(--border-color);"></i>
+          <p>You have not submitted any mortgage applications yet.</p>
+          <button class="btn btn-primary" (click)="selectTab('origination')" style="margin-top: 15px;">
+            <i class="fa-solid fa-plus"></i> Start New Application
+          </button>
+        </div>
+
+        <!-- Application Found -->
+        <div *ngIf="applications.length > 0">
+          <!-- Get the last application -->
+          <div class="app-summary-uw" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 24px; margin-bottom: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <div>
+                <span class="loan-id-tag">{{ applications[applications.length - 1].loanId }}</span>
+                <span style="margin-left: 10px; font-weight: 500; font-size: 1.1rem;">{{ applications[applications.length - 1].loanType }}</span>
+              </div>
+              <span class="status-badge" [ngClass]="applications[applications.length - 1].status.toLowerCase()">
+                {{ applications[applications.length - 1].status }}
+              </span>
+            </div>
+
+            <!-- Stepper Progress Tracker -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: rgba(0, 0, 0, 0.15); border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color);">
+              <!-- Step 1: Intake -->
+              <div style="display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; position: relative;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600;"
+                     [style.background-color]="'var(--color-success)'" [style.color]="'#fff'">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+                <span style="font-size: 0.8rem; margin-top: 8px; font-weight: 600;">Intake Submitted</span>
+              </div>
+              <!-- Connector -->
+              <div style="height: 2px; flex: 1; background-color: var(--border-color);"
+                   [style.background-color]="applications[applications.length - 1].status !== 'SUBMITTED' ? 'var(--color-success)' : 'var(--border-color)'"></div>
+              <!-- Step 2: Underwriting -->
+              <div style="display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; position: relative;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600;"
+                     [style.background-color]="applications[applications.length - 1].status !== 'SUBMITTED' ? 'var(--color-warning)' : 'rgba(255,255,255,0.05)'"
+                     [style.color]="applications[applications.length - 1].status !== 'SUBMITTED' ? '#000' : 'var(--color-muted)'">
+                  <i class="fa-solid fa-shield-halved" *ngIf="applications[applications.length - 1].status === 'SUBMITTED' || applications[applications.length - 1].status === 'UNDER_REVIEW'"></i>
+                  <i class="fa-solid fa-check" *ngIf="applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED'"></i>
+                </div>
+                <span style="font-size: 0.8rem; margin-top: 8px; font-weight: 600;">Risk Assessment</span>
+              </div>
+              <!-- Connector -->
+              <div style="height: 2px; flex: 1; background-color: var(--border-color);"
+                   [style.background-color]="(applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED') ? 'var(--color-success)' : 'var(--border-color)'"></div>
+              <!-- Step 3: Decision -->
+              <div style="display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; position: relative;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600;"
+                     [style.background-color]="applications[applications.length - 1].status === 'APPROVED' ? 'var(--color-success)' : (applications[applications.length - 1].status === 'REJECTED' ? 'var(--color-danger)' : 'rgba(255,255,255,0.05)')"
+                     [style.color]="(applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED') ? '#fff' : 'var(--color-muted)'">
+                  <i class="fa-solid fa-circle-check" *ngIf="applications[applications.length - 1].status === 'APPROVED'"></i>
+                  <i class="fa-solid fa-circle-xmark" *ngIf="applications[applications.length - 1].status === 'REJECTED'"></i>
+                  <i class="fa-solid fa-hourglass-start" *ngIf="applications[applications.length - 1].status === 'SUBMITTED' || applications[applications.length - 1].status === 'UNDER_REVIEW'"></i>
+                </div>
+                <span style="font-size: 0.8rem; margin-top: 8px; font-weight: 600;">Decision Output</span>
+              </div>
+            </div>
+
+            <!-- Details List -->
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px;">
+              <div>
+                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Requested Loan Amount</label>
+                <span style="font-size: 1.1rem; font-weight: 600;">${{ applications[applications.length - 1].loanAmount | number }}</span>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Appraisal Valuation</label>
+                <span style="font-size: 1.1rem; font-weight: 600;">${{ applications[applications.length - 1].propertyValue | number }}</span>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">FICO Score Check</label>
+                <span style="font-size: 1.1rem; font-weight: 600;">{{ applications[applications.length - 1].creditScore }}</span>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Automated Decision Output</label>
+                <span class="decision-reason" style="display: block; font-weight: 500; font-size: 0.85rem;"
+                      [style.border-left-color]="applications[applications.length - 1].status === 'APPROVED' ? 'var(--color-success)' : (applications[applications.length - 1].status === 'REJECTED' ? 'var(--color-danger)' : 'var(--color-warning)')">
+                  {{ applications[applications.length - 1].decisionReason || 'Undergoing automated assessment guidelines checks...' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document List Uploaded -->
+          <div class="glass-card" style="padding: 20px; background: rgba(0, 0, 0, 0.1);">
+            <h3>Mortgage Asset Verification Files</h3>
+            <p class="subtitle" style="margin-bottom: 15px; font-size: 0.85rem;">Verification status of files uploaded to the Reactive GridFS document repository.</p>
+            <div class="documents-grid-view">
+              <div class="doc-card" *ngFor="let file of (uploadedFiles[applications[applications.length - 1].loanId] || [])">
+                <i class="fa-solid fa-file-circle-check doc-icon" style="color: var(--color-success);"></i>
+                <div class="doc-details">
+                  <h4>{{ file }}</h4>
+                  <span class="tag">GridFS Hash Checked</span>
+                </div>
+              </div>
+              <div class="doc-card" *ngIf="!(uploadedFiles[applications[applications.length - 1].loanId] && uploadedFiles[applications[applications.length - 1].loanId].length > 0)">
+                <i class="fa-solid fa-triangle-exclamation doc-icon" style="color: var(--color-warning);"></i>
+                <div class="doc-details">
+                  <h4>Pending Income Documentation</h4>
+                  <span class="tag">Upload W-2 / PAYSLIP</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-secondary" (click)="selectTab('documents')" style="margin-top: 15px; font-size: 0.85rem; padding: 8px 16px;">
+              <i class="fa-solid fa-upload"></i> Go to Document Center
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: UNDERWRITING ASSESSMENT ENGINE -->
+    <section class="tab-pane" *ngIf="activeTab === 'underwriting'">
+      <div class="underwriting-grid">
+        <!-- Underwriter Application Queue -->
+        <div class="glass-card active-queue">
+          <h2>Underwriting Review Queue</h2>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>LTV Ratio</th>
+                  <th>DTI Ratio</th>
+                  <th>Score</th>
+                  <th>Current State</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let app of applications" [class.selected]="selectedApp?.loanId === app.loanId" (click)="selectApp(app)">
+                  <td>{{ app.loanId }}</td>
+                  <td>{{ app.customerName }}</td>
+                  <td>{{ app.ltvRatio }}%</td>
+                  <td>{{ app.dtiRatio }}%</td>
+                  <td>{{ app.creditScore }}</td>
+                  <td>
+                    <span class="status-badge" [class]="app.status.toLowerCase()">{{ app.status }}</span>
+                  </td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" (click)="triggerUnderwriting(app)">
+                      <i class="fa-solid fa-bolt"></i> Evaluate
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Underwriting Manual Decision overrides panel -->
+        <div class="glass-card override-panel" *ngIf="selectedApp">
+          <h2>Manual Underwriter Review</h2>
+          <p class="subtitle">Review rules calculations and issue final decisions or manual overrides.</p>
+          
+          <div class="app-summary-uw">
+            <p><strong>Borrower Profile:</strong> {{ selectedApp.customerName }} (FICO: {{ selectedApp.creditScore }})</p>
+            <p><strong>Computed LTV:</strong> <span [class.red-highlight]="selectedApp.ltvRatio > 80">{{ selectedApp.ltvRatio }}%</span></p>
+            <p><strong>Computed DTI:</strong> <span [class.red-highlight]="selectedApp.dtiRatio > 45">{{ selectedApp.dtiRatio }}%</span></p>
+            <p><strong>Assessment Level:</strong> <span class="risk-badge" [class]="selectedApp.riskLevel.toLowerCase()">{{ selectedApp.riskLevel }}</span></p>
+          </div>
+
+          <div class="override-form">
+            <div class="form-group">
+              <label>Override Decision</label>
+              <select class="form-control" [(ngModel)]="overrideDecision">
+                <option value="APPROVED">APPROVE (Override PASS)</option>
+                <option value="REJECTED">DECLINE (Override REJECT)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Reviewer Justification / Reason (Audited)</label>
+              <textarea class="form-control textarea" [(ngModel)]="overrideReason" rows="4" placeholder="Document specific compensating factors (e.g. high cash reserves, stable job history)."></textarea>
+            </div>
+            <button class="btn btn-primary" (click)="submitManualOverride(selectedApp)">
+              <i class="fa-solid fa-gavel"></i> Apply Underwriting Override Decision
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: DOCUMENTS STORE -->
+    <section class="tab-pane" *ngIf="activeTab === 'documents'">
+      <div class="document-flow-container">
+        <!-- GridFS Uploader -->
+        <div class="glass-card document-upload-card" *ngIf="selectedApp">
+          <h2>Reactive Document Store (GridFS Client)</h2>
+          <p class="subtitle">Upload asset papers, credit details, or appraisers reports to MongoDB Reactive GridFS. Target Loan: {{ selectedApp.loanId }}</p>
+
+          <div class="upload-control-row">
+            <div class="form-group select-type-group">
+              <label>Document Classification Type</label>
+              <select class="form-control" [(ngModel)]="uploadDocType">
+                <option value="INCOME_PROOF">W2 / Pay Stub Income Proof</option>
+                <option value="IDENTIFICATION">Identity (Driver License / SSN)</option>
+                <option value="PROPERTY_APPRAISAL">Property Appraisal Document</option>
+                <option value="CLOSING_DISCLOSURE">Closing Disclosure Document</option>
+              </select>
+            </div>
+            <div class="form-group file-input-group">
+              <label>Select Document File</label>
+              <input type="file" #fileInput class="form-control file-input" (change)="simulateFileUpload(selectedApp, fileInput)">
+            </div>
+          </div>
+
+          <!-- Document List -->
+          <div class="document-list-section">
+            <h3>Uploaded Files Map (GridFS Refs)</h3>
+            <div class="documents-grid-view">
+              <div class="doc-card" *ngFor="let doc of selectedApp.documents">
+                <div class="doc-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                <div class="doc-details">
+                  <h4>{{ doc.fileName }}</h4>
+                  <span class="tag">{{ doc.type }}</span>
+                </div>
+                <span class="status-badge verified">{{ doc.status }}</span>
+              </div>
+              <div class="no-documents" *ngIf="selectedApp.documents.length === 0">
+                <p>No documents uploaded yet. Stream verification binaries using the inputs above.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: LOAN SERVICING -->
+    <section class="tab-pane" *ngIf="activeTab === 'servicing'">
+      <div class="glass-card servicing-card">
+        <h2>Post-Closing & Loan Servicing Amortization</h2>
+        <p class="subtitle">Generate payment dates, track installments, and audit balances.</p>
+
+        <div class="calculator-row" *ngIf="selectedApp">
+          <div class="info-box">
+            <h3>Payment Calculator</h3>
+            <p><strong>Approved Principal:</strong> {{ selectedApp.loanAmount | currency:'USD':'symbol':'1.0-0' }}</p>
+            <p><strong>Interest Mode:</strong> 6.50% Fixed Interest Rate</p>
+            <p><strong>Computed Monthly Installment (EMI):</strong> {{ (selectedApp.loanAmount * 0.0053) | currency:'USD':'symbol':'1.0-0' }}/month</p>
+          </div>
+
+          <div class="amortization-table-wrapper">
+            <h3>Scheduled Installments</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>Due Date</th>
+                  <th>Beginning Balance</th>
+                  <th>Monthly Payment</th>
+                  <th>Principal Paid</th>
+                  <th>Interest Component</th>
+                  <th>Ending Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>July 01, 2026</td>
+                  <td>{{ selectedApp.loanAmount | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0053) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0018) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0035) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount - (selectedApp.loanAmount * 0.0018)) | currency:'USD':'symbol':'1.0-0' }}</td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>August 01, 2026</td>
+                  <td>{{ (selectedApp.loanAmount - (selectedApp.loanAmount * 0.0018)) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0053) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0019) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount * 0.0034) | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ (selectedApp.loanAmount - (selectedApp.loanAmount * 0.0037)) | currency:'USD':'symbol':'1.0-0' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: COMPLIANCE & AUDITS -->
+    <section class="tab-pane" *ngIf="activeTab === 'compliance'">
+      <!-- ActiveMQ & Kafka Auditing -->
+      <div class="compliance-columns">
+        <div class="glass-card audit-logs-card">
+          <h2>Compliance Audit Stream Logs</h2>
+          <p class="subtitle">Real-time traces of ActiveMQ queues and OAuth2 authorization logs.</p>
+          <div class="logs-container">
+            <div class="log-entry" *ngFor="let log of auditLogs">
+              <span class="log-time">{{ log.timestamp | date:'HH:mm:ss' }}</span>
+              <span class="log-user">[{{ log.user }}]</span>
+              <strong class="log-action">{{ log.action }}</strong>:
+              <span class="log-details">{{ log.details }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card regulatory-card">
+          <h2>Regulatory & HMDA Statistics</h2>
+          <div class="stats-pills-row">
+            <div class="stat-pill-large">
+              <h4>LTV Mean Group</h4>
+              <span>71.4% Avg</span>
+            </div>
+            <div class="stat-pill-large">
+              <h4>DTI Mean Group</h4>
+              <span>24.8% Avg</span>
+            </div>
+          </div>
+          <p class="regulatory-disclaimer">
+            All transaction history records are masked and secured under CCPA and SOC2 regulations. SSN records are automatically encrypted at the database persistence adapter layer.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

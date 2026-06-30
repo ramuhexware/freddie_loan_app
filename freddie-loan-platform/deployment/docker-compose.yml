@@ -1,0 +1,383 @@
+version: "3.9"
+
+# =============================================================================
+# Freddie Mac-Style Home Loan Application — Developer Docker Compose Stack
+# =============================================================================
+# Services included:
+#   - PostgreSQL     (Customer Service DB)
+#   - MongoDB        (Document Service DB)
+#   - Apache Kafka + Zookeeper (Async events)
+#   - ActiveMQ       (JMS queue messaging)
+#   - Elasticsearch + Kibana (Observability)
+#   - Zipkin         (Distributed tracing)
+#   - Eureka Server  (Service discovery)
+#   - API Gateway    (Spring Cloud Gateway)
+#   - Microservices  (customer, loan-origination, underwriting, document,
+#                     notification, integration, messaging, legacy-adapter)
+# =============================================================================
+
+networks:
+  freddie-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  activemq_data:
+  elasticsearch_data:
+  kafka_data:
+
+services:
+
+  # ─── INFRASTRUCTURE ────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: freddie-zookeeper
+    networks: [freddie-net]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: freddie-kafka
+    networks: [freddie-net]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 720     # 30 days
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  activemq:
+    image: apache/activemq-classic:5.18.3
+    container_name: freddie-activemq
+    networks: [freddie-net]
+    ports:
+      - "61616:61616"    # JMS port
+      - "8161:8161"      # Admin console
+    environment:
+      ACTIVEMQ_USERNAME: admin
+      ACTIVEMQ_PASSWORD: admin
+      ACTIVEMQ_WEBADMIN_USERNAME: admin
+      ACTIVEMQ_WEBADMIN_PASSWORD: admin
+    volumes:
+      - activemq_data:/var/lib/activemq/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-u", "admin:admin", "http://localhost:8161/admin/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: freddie-postgresql
+    networks: [freddie-net]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: freddie_admin
+      POSTGRES_PASSWORD: freddie_secret
+      POSTGRES_DB: freddie_customer
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freddie_admin -d freddie_customer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: freddie-mongodb
+    networks: [freddie-net]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: freddie_admin
+      MONGO_INITDB_ROOT_PASSWORD: freddie_secret
+      MONGO_INITDB_DATABASE: freddie_documents
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: freddie-elasticsearch
+    networks: [freddie-net]
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: freddie-kibana
+    networks: [freddie-net]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: freddie-zipkin
+    networks: [freddie-net]
+    ports:
+      - "9411:9411"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── INFRASTRUCTURE SERVICES ───────────────────────────────────────────────
+
+  eureka-server:
+    build:
+      context: ../eureka-server
+    image: freddie/eureka-server:latest
+    container_name: freddie-eureka
+    networks: [freddie-net]
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+    image: freddie/api-gateway:latest
+    container_name: freddie-gateway
+    networks: [freddie-net]
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_ZIPKIN_BASE_URL: http://zipkin:9411
+      SPRING_PROFILES_ACTIVE: docker
+
+  # ─── MICROSERVICES ─────────────────────────────────────────────────────────
+
+  customer-service:
+    build:
+      context: ../customer-service
+    image: freddie/customer-service:latest
+    container_name: freddie-customer-svc
+    networks: [freddie-net]
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_customer
+      SPRING_DATASOURCE_USERNAME: freddie_admin
+      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+
+  loan-origination-service:
+    build:
+      context: ../loan-origination-service
+    image: freddie/loan-origination-service:latest
+    container_name: freddie-loan-svc
+    networks: [freddie-net]
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle-db:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: freddie_loans
+      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  underwriting-service:
+    build:
+      context: ../underwriting-service
+    image: freddie/underwriting-service:latest
+    container_name: freddie-underwriting-svc
+    networks: [freddie-net]
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:db2://db2-server:50000/FREDUWR
+      SPRING_DATASOURCE_USERNAME: freddie_uw
+      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  document-service:
+    build:
+      context: ../document-service
+    image: freddie/document-service:latest
+    container_name: freddie-document-svc
+    networks: [freddie-net]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_MONGODB_URI: mongodb://freddie_admin:freddie_secret@mongodb:27017/freddie_documents?authSource=admin
+      SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  notification-service:
+    build:
+      context: ../notification-service
+    image: freddie/notification-service:latest
+    container_name: freddie-notification-svc
+    networks: [freddie-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgresql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_customer
+      SPRING_DATASOURCE_USERNAME: freddie_admin
+      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+  messaging-service:
+    build:
+      context: ../messaging-service
+    image: freddie/messaging-service:latest
+    container_name: freddie-messaging-svc
+    networks: [freddie-net]
+    depends_on:
+      activemq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+  legacy-adapter-service:
+    build:
+      context: ../legacy-adapter-service
+    image: freddie/legacy-adapter-service:latest
+    container_name: freddie-legacy-adapter-svc
+    networks: [freddie-net]
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      LEGACY_SOAP_OSB_ENDPOINT: http://osb-host:7001
+      LEGACY_SOAP_WSS_USERNAME: freddie-adapter-svc
+      LEGACY_SOAP_WSS_PASSWORD: ${LEGACY_WSS_PASSWORD}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+  card-service:
+    build:
+      context: ../card-service
+    image: freddie/card-service:latest
+    container_name: freddie-card-svc
+    networks: [freddie-net]
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_cards
+      SPRING_DATASOURCE_USERNAME: freddie_admin
+      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+

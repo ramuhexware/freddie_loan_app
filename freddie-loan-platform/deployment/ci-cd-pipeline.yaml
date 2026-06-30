@@ -1,0 +1,415 @@
+# =============================================================================
+# Freddie Mac-Style Home Loan Platform — Azure DevOps CI/CD Pipeline
+# =============================================================================
+# Pipeline Stages:
+#   1. Validate         → Checkstyle, OWASP dependency scan, license check
+#   2. Build & Test     → Maven build, unit tests, integration tests
+#   3. Code Quality     → SonarQube analysis, coverage thresholds
+#   4. Build Images     → Docker build + push to Azure Container Registry (ACR)
+#   5. Deploy Dev       → Deploy to AKS dev namespace
+#   6. Integration Test → Automated API tests against dev environment
+#   7. Deploy Staging   → Deploy to AKS staging namespace (manual approval)
+#   8. Deploy Prod      → Blue/Green deploy to AKS prod (manual approval)
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+  paths:
+    exclude:
+      - "*.md"
+      - "docs/**"
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Azure Container Registry
+  ACR_NAME: "freddieplatformacr"
+  ACR_LOGIN_SERVER: "$(ACR_NAME).azurecr.io"
+  IMAGE_TAG: "$(Build.BuildId)"
+
+  # AKS cluster
+  AKS_CLUSTER_NAME: "freddie-platform-aks"
+  AKS_RESOURCE_GROUP: "freddie-platform-rg"
+
+  # Service list for matrix build
+  SERVICES: >-
+    customer-service
+    loan-origination-service
+    underwriting-service
+    document-service
+    notification-service
+    integration-service
+    messaging-service
+    legacy-adapter-service
+    api-gateway
+
+  # Maven/Java config
+  JAVA_VERSION: "17"
+  MAVEN_OPTS: "-Xmx2048m -Dmaven.repo.local=$(Pipeline.Workspace)/.m2"
+
+pool:
+  vmImage: "ubuntu-22.04"
+
+# =============================================================================
+# Stage 1: Validate
+# =============================================================================
+stages:
+  - stage: Validate
+    displayName: "🔍 Validate Code"
+    jobs:
+      - job: StaticAnalysis
+        displayName: "Static Analysis & Security Scan"
+        steps:
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: "$(JAVA_VERSION)"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          - task: Cache@2
+            inputs:
+              key: 'maven | "$(Agent.OS)" | **/pom.xml'
+              restoreKeys: |
+                maven | "$(Agent.OS)"
+              path: $(Pipeline.Workspace)/.m2
+            displayName: "Cache Maven packages"
+
+          - script: |
+              mvn -B validate \
+                  org.apache.maven.plugins:maven-checkstyle-plugin:check \
+                  -Dcheckstyle.config.location=.config/checkstyle.xml \
+                  $(MAVEN_OPTS)
+            displayName: "Checkstyle Validation"
+
+          - script: |
+              mvn -B org.owasp:dependency-check-maven:check \
+                  -DfailBuildOnCVSS=7 \
+                  -DsuppressionFile=.config/owasp-suppressions.xml \
+                  $(MAVEN_OPTS)
+            displayName: "OWASP Dependency Vulnerability Scan"
+
+          - task: PublishTestResults@2
+            condition: always()
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "**/dependency-check-report.xml"
+              testRunTitle: "OWASP Scan Results"
+
+# =============================================================================
+# Stage 2: Build & Test
+# =============================================================================
+  - stage: BuildAndTest
+    displayName: "⚙️ Build & Test"
+    dependsOn: Validate
+    jobs:
+      - job: BuildTest
+        displayName: "Maven Build + Unit & Integration Tests"
+        strategy:
+          matrix:
+            CustomerService:
+              SERVICE_DIR: "customer-service"
+            LoanOriginationService:
+              SERVICE_DIR: "loan-origination-service"
+            UnderwritingService:
+              SERVICE_DIR: "underwriting-service"
+            DocumentService:
+              SERVICE_DIR: "document-service"
+            NotificationService:
+              SERVICE_DIR: "notification-service"
+            LegacyAdapterService:
+              SERVICE_DIR: "legacy-adapter-service"
+          maxParallel: 4
+
+        steps:
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: "$(JAVA_VERSION)"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          - task: Cache@2
+            inputs:
+              key: 'maven | "$(Agent.OS)" | **/pom.xml'
+              path: $(Pipeline.Workspace)/.m2
+
+          - script: |
+              cd $(SERVICE_DIR)
+              mvn -B clean verify \
+                  -Pintegration-test \
+                  -Dspring.profiles.active=test \
+                  $(MAVEN_OPTS)
+            displayName: "Build + Test: $(SERVICE_DIR)"
+
+          - task: PublishTestResults@2
+            condition: always()
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "$(SERVICE_DIR)/**/surefire-reports/TEST-*.xml"
+              testRunTitle: "Unit Tests: $(SERVICE_DIR)"
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: "JaCoCo"
+              summaryFileLocation: "$(SERVICE_DIR)/target/site/jacoco/jacoco.xml"
+              reportDirectory: "$(SERVICE_DIR)/target/site/jacoco"
+              failIfCoverageEmpty: true
+
+# =============================================================================
+# Stage 3: Code Quality
+# =============================================================================
+  - stage: CodeQuality
+    displayName: "📊 SonarQube Quality Gate"
+    dependsOn: BuildAndTest
+    jobs:
+      - job: SonarQube
+        displayName: "SonarQube Analysis"
+        steps:
+          - task: SonarQubePrepare@6
+            inputs:
+              SonarQube: "SonarQube-ServiceConnection"
+              scannerMode: "CLI"
+              configMode: "manual"
+              cliProjectKey: "freddie-platform"
+              cliProjectName: "Freddie Mac Loan Platform"
+              extraProperties: |
+                sonar.java.coveragePlugin=jacoco
+                sonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
+                sonar.coverage.exclusions=**/*Config.java,**/*Application.java,**/dto/**,**/entity/**
+                sonar.qualitygate.wait=true
+
+          - task: Maven@3
+            inputs:
+              mavenPomFile: "pom.xml"
+              goals: "verify sonar:sonar"
+              options: "-Dsonar.login=$(SONAR_TOKEN)"
+              javaHomeOption: "JDKVersion"
+              jdkVersionOption: "1.17"
+              publishJUnitResults: false
+
+          - task: SonarQubePublish@6
+            inputs:
+              pollingTimeoutSec: "300"
+
+# =============================================================================
+# Stage 4: Build & Push Docker Images
+# =============================================================================
+  - stage: BuildImages
+    displayName: "🐳 Build Docker Images"
+    dependsOn: CodeQuality
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')))
+    jobs:
+      - job: DockerBuildPush
+        displayName: "Build & Push Images to ACR"
+        strategy:
+          matrix:
+            CustomerService:
+              SERVICE_DIR: "customer-service"
+              IMAGE_NAME: "customer-service"
+            LoanOriginationService:
+              SERVICE_DIR: "loan-origination-service"
+              IMAGE_NAME: "loan-origination-service"
+            UnderwritingService:
+              SERVICE_DIR: "underwriting-service"
+              IMAGE_NAME: "underwriting-service"
+            DocumentService:
+              SERVICE_DIR: "document-service"
+              IMAGE_NAME: "document-service"
+            NotificationService:
+              SERVICE_DIR: "notification-service"
+              IMAGE_NAME: "notification-service"
+            LegacyAdapterService:
+              SERVICE_DIR: "legacy-adapter-service"
+              IMAGE_NAME: "legacy-adapter-service"
+            ApiGateway:
+              SERVICE_DIR: "api-gateway"
+              IMAGE_NAME: "api-gateway"
+          maxParallel: 4
+
+        steps:
+          - task: AzureCLI@2
+            displayName: "ACR Login"
+            inputs:
+              azureSubscription: "Azure-ServiceConnection"
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+
+          - task: Docker@2
+            displayName: "Build Docker Image: $(IMAGE_NAME)"
+            inputs:
+              command: "build"
+              dockerfile: "$(SERVICE_DIR)/Dockerfile"
+              buildContext: "$(SERVICE_DIR)"
+              repository: "$(ACR_LOGIN_SERVER)/freddie/$(IMAGE_NAME)"
+              tags: |
+                $(IMAGE_TAG)
+                latest
+              arguments: "--build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(IMAGE_TAG)"
+
+          - task: Docker@2
+            displayName: "Push Docker Image: $(IMAGE_NAME)"
+            inputs:
+              command: "push"
+              repository: "$(ACR_LOGIN_SERVER)/freddie/$(IMAGE_NAME)"
+              tags: |
+                $(IMAGE_TAG)
+                latest
+
+# =============================================================================
+# Stage 5: Deploy to Dev Environment
+# =============================================================================
+  - stage: DeployDev
+    displayName: "🚀 Deploy to Dev"
+    dependsOn: BuildImages
+    variables:
+      NAMESPACE: "freddie-dev"
+    jobs:
+      - deployment: DeployDev
+        displayName: "Deploy All Services to Dev AKS"
+        environment: "freddie-dev"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: "Set AKS Context"
+                  inputs:
+                    azureSubscription: "Azure-ServiceConnection"
+                    scriptType: "bash"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(AKS_RESOURCE_GROUP) \
+                        --name $(AKS_CLUSTER_NAME) \
+                        --overwrite-existing
+
+                - script: |
+                    kubectl set image deployment/customer-service \
+                        customer-service=$(ACR_LOGIN_SERVER)/freddie/customer-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/loan-origination-service \
+                        loan-origination-service=$(ACR_LOGIN_SERVER)/freddie/loan-origination-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/underwriting-service \
+                        underwriting-service=$(ACR_LOGIN_SERVER)/freddie/underwriting-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/document-service \
+                        document-service=$(ACR_LOGIN_SERVER)/freddie/document-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/notification-service \
+                        notification-service=$(ACR_LOGIN_SERVER)/freddie/notification-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/legacy-adapter-service \
+                        legacy-adapter-service=$(ACR_LOGIN_SERVER)/freddie/legacy-adapter-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl set image deployment/api-gateway \
+                        api-gateway=$(ACR_LOGIN_SERVER)/freddie/api-gateway:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                  displayName: "Rolling Update — All Services (Dev)"
+
+                - script: |
+                    kubectl rollout status deployment/customer-service -n $(NAMESPACE) --timeout=5m
+                    kubectl rollout status deployment/loan-origination-service -n $(NAMESPACE) --timeout=5m
+                    kubectl rollout status deployment/api-gateway -n $(NAMESPACE) --timeout=5m
+                  displayName: "Verify Rollout Health"
+
+# =============================================================================
+# Stage 6: Integration Tests (against Dev)
+# =============================================================================
+  - stage: IntegrationTests
+    displayName: "🧪 Integration Tests"
+    dependsOn: DeployDev
+    jobs:
+      - job: RunIntegrationTests
+        displayName: "Postman/Newman API Integration Tests"
+        steps:
+          - script: |
+              npm install -g newman
+              newman run tests/integration/freddie-platform.postman_collection.json \
+                  -e tests/integration/dev-environment.json \
+                  --reporters cli,junit \
+                  --reporter-junit-export test-results/integration-results.xml
+            displayName: "Run API Integration Tests via Newman"
+
+          - task: PublishTestResults@2
+            condition: always()
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "test-results/integration-results.xml"
+              testRunTitle: "Integration Tests — Dev Environment"
+
+# =============================================================================
+# Stage 7: Deploy to Staging (requires manual approval)
+# =============================================================================
+  - stage: DeployStaging
+    displayName: "🎯 Deploy to Staging"
+    dependsOn: IntegrationTests
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      NAMESPACE: "freddie-staging"
+    jobs:
+      - deployment: DeployStaging
+        displayName: "Deploy to Staging (Manual Approval Required)"
+        environment: "freddie-staging"   # Azure DevOps environment with approval gates
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    kubectl set image deployment/customer-service \
+                        customer-service=$(ACR_LOGIN_SERVER)/freddie/customer-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    # ... repeat for all services
+                  displayName: "Rolling Update — All Services (Staging)"
+
+# =============================================================================
+# Stage 8: Deploy to Production (Blue/Green — requires manual approval)
+# =============================================================================
+  - stage: DeployProd
+    displayName: "🏭 Deploy to Production (Blue/Green)"
+    dependsOn: DeployStaging
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      NAMESPACE: "freddie-prod"
+    jobs:
+      - deployment: DeployProd
+        displayName: "Blue/Green Deploy to Production (Manual Approval)"
+        environment: "freddie-production"  # Has mandatory approval + business hours gate
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    # Blue/Green: Deploy new version to "green" deployment
+                    # Switch service selector after health check
+
+                    # 1. Deploy new version (green)
+                    kubectl set image deployment/customer-service-green \
+                        customer-service=$(ACR_LOGIN_SERVER)/freddie/customer-service:$(IMAGE_TAG) \
+                        -n $(NAMESPACE)
+                    kubectl rollout status deployment/customer-service-green -n $(NAMESPACE) --timeout=10m
+
+                    # 2. Run smoke tests against green
+                    # 3. Switch service selector to green
+                    kubectl patch service customer-service -n $(NAMESPACE) \
+                        -p '{"spec":{"selector":{"version":"green"}}}'
+
+                    echo "Production blue/green switch complete. Old (blue) kept for 15 minutes for rollback."
+                  displayName: "Blue/Green Switch — Customer Service"
+
+                - script: |
+                    # Tag production release in registry
+                    az acr import \
+                        --name $(ACR_NAME) \
+                        --source $(ACR_LOGIN_SERVER)/freddie/customer-service:$(IMAGE_TAG) \
+                        --image freddie/customer-service:prod-$(Build.BuildId)
+                  displayName: "Tag Prod Release Images in ACR"
+                  condition: succeeded()

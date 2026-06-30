@@ -1,0 +1,509 @@
+## =============================================================================
+## Freddie Mac-Style Home Loan Platform — Kubernetes Manifests
+## =============================================================================
+## Namespaces: freddie-infra | freddie-services | freddie-gateway | freddie-obs
+## =============================================================================
+
+---
+# ─── NAMESPACES ───────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: freddie-infra
+  labels:
+    app.kubernetes.io/part-of: freddie-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: freddie-services
+  labels:
+    app.kubernetes.io/part-of: freddie-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: freddie-gateway
+  labels:
+    app.kubernetes.io/part-of: freddie-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: freddie-observability
+  labels:
+    app.kubernetes.io/part-of: freddie-platform
+
+---
+# ─── CONFIGMAP — Shared Platform Config ───────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freddie-platform-config
+  namespace: freddie-services
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: "http://eureka-server.freddie-infra.svc.cluster.local:8761/eureka"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka.freddie-infra.svc.cluster.local:9092"
+  ACTIVEMQ_BROKER_URL: "tcp://activemq.freddie-infra.svc.cluster.local:61616"
+  ZIPKIN_ENDPOINT: "http://zipkin.freddie-observability.svc.cluster.local:9411/api/v2/spans"
+
+---
+# ─── SECRET — Database Credentials ───────────────────────────────────────────
+# In production: use Azure Key Vault CSI Driver or Sealed Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: freddie-db-secrets
+  namespace: freddie-services
+type: Opaque
+stringData:
+  POSTGRES_USER: "freddie_admin"
+  POSTGRES_PASSWORD: "REPLACE_WITH_VAULT_SECRET"
+  ORACLE_USER: "freddie_loans"
+  ORACLE_PASSWORD: "REPLACE_WITH_VAULT_SECRET"
+  DB2_USER: "freddie_uw"
+  DB2_PASSWORD: "REPLACE_WITH_VAULT_SECRET"
+  MONGODB_URI: "mongodb://freddie_admin:REPLACE@mongodb.freddie-infra.svc.cluster.local:27017/freddie_documents?authSource=admin"
+  LEGACY_WSS_PASSWORD: "REPLACE_WITH_VAULT_SECRET"
+
+---
+## =============================================================================
+## INFRASTRUCTURE SERVICES
+## =============================================================================
+
+# ─── EUREKA SERVER ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka-server
+  namespace: freddie-infra
+  labels:
+    app: eureka-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: eureka-server
+  template:
+    metadata:
+      labels:
+        app: eureka-server
+    spec:
+      containers:
+        - name: eureka-server
+          image: freddie/eureka-server:1.0.0
+          ports:
+            - containerPort: 8761
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8761
+            initialDelaySeconds: 60
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka-server
+  namespace: freddie-infra
+spec:
+  selector:
+    app: eureka-server
+  ports:
+    - port: 8761
+      targetPort: 8761
+
+---
+## =============================================================================
+## MICROSERVICES
+## =============================================================================
+
+# ─── CUSTOMER SERVICE ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-service
+  namespace: freddie-services
+  labels:
+    app: customer-service
+    version: "1.0.0"
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: customer-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: customer-service
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8081"
+    spec:
+      containers:
+        - name: customer-service
+          image: freddie/customer-service:1.0.0
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: freddie-platform-config
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgresql.freddie-infra.svc.cluster.local:5432/freddie_customer"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: freddie-db-secrets
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: freddie-db-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-service
+  namespace: freddie-services
+spec:
+  selector:
+    app: customer-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+
+---
+# ─── LOAN ORIGINATION SERVICE ─────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-origination-service
+  namespace: freddie-services
+  labels:
+    app: loan-origination-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: loan-origination-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: loan-origination-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8082"
+    spec:
+      containers:
+        - name: loan-origination-service
+          image: freddie/loan-origination-service:1.0.0
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: freddie-platform-config
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:oracle:thin:@oracle-db.freddie-infra.svc.cluster.local:1521/FREEPDB1"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: freddie-db-secrets
+                  key: ORACLE_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: freddie-db-secrets
+                  key: ORACLE_PASSWORD
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "700m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8082
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 120
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-origination-service
+  namespace: freddie-services
+spec:
+  selector:
+    app: loan-origination-service
+  ports:
+    - port: 8082
+      targetPort: 8082
+
+---
+# ─── UNDERWRITING SERVICE ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: underwriting-service
+  namespace: freddie-services
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: underwriting-service
+  template:
+    metadata:
+      labels:
+        app: underwriting-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8083"
+    spec:
+      containers:
+        - name: underwriting-service
+          image: freddie/underwriting-service:1.0.0
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: freddie-platform-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "600m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8083
+            initialDelaySeconds: 60
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: underwriting-service
+  namespace: freddie-services
+spec:
+  selector:
+    app: underwriting-service
+  ports:
+    - port: 8083
+      targetPort: 8083
+
+---
+# ─── LEGACY ADAPTER SERVICE ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-adapter-service
+  namespace: freddie-services
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: legacy-adapter-service
+  template:
+    metadata:
+      labels:
+        app: legacy-adapter-service
+    spec:
+      containers:
+        - name: legacy-adapter-service
+          image: freddie/legacy-adapter-service:1.0.0
+          ports:
+            - containerPort: 8088
+          envFrom:
+            - configMapRef:
+                name: freddie-platform-config
+          env:
+            - name: LEGACY_SOAP_WSS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: freddie-db-secrets
+                  key: LEGACY_WSS_PASSWORD
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-adapter-service
+  namespace: freddie-services
+spec:
+  selector:
+    app: legacy-adapter-service
+  ports:
+    - port: 8088
+      targetPort: 8088
+
+---
+## =============================================================================
+## API GATEWAY with Horizontal Pod Autoscaler
+## =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: freddie-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: freddie/api-gateway:1.0.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: freddie-platform-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "700m"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: freddie-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: freddie-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: api-gateway
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+# ─── INGRESS ──────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: freddie-platform-ingress
+  namespace: freddie-gateway
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.freddie-platform.example.com
+      secretName: freddie-tls-cert
+  rules:
+    - host: api.freddie-platform.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 80

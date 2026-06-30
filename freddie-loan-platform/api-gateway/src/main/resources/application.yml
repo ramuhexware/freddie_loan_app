@@ -1,0 +1,122 @@
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: customer-service
+          uri: lb://customer-service
+          predicates:
+            - Path=/api/v1/customers/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+            - name: CircuitBreaker
+              args:
+                name: customer-service-cb
+                fallbackUri: forward:/fallback/customer-service
+
+        - id: loan-origination-service
+          uri: lb://loan-origination-service
+          predicates:
+            - Path=/api/v1/loans/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+            - name: CircuitBreaker
+              args:
+                name: loan-service-cb
+                fallbackUri: forward:/fallback/loan-service
+
+        - id: underwriting-service
+          uri: lb://underwriting-service
+          predicates:
+            - Path=/api/v1/underwriting/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: underwriting-service-cb
+
+        - id: document-service
+          uri: lb://document-service
+          predicates:
+            - Path=/api/v1/documents/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+
+        - id: legacy-adapter-service
+          uri: lb://legacy-adapter-service
+          predicates:
+            - Path=/api/v1/legacy/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: legacy-adapter-cb
+
+        - id: card-service
+          uri: lb://card-service
+          predicates:
+            - Path=/api/v1/cards/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+            - name: CircuitBreaker
+              args:
+                name: card-service-cb
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/freddie-platform
+          jwk-set-uri: http://localhost:8080/realms/freddie-platform/protocol/openid-connect/certs
+
+server:
+  port: 8080
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.freddieapp.apigateway: INFO
