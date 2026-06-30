@@ -64,6 +64,14 @@ public class UnderwritingController {
         return ResponseEntity.ok(page);
     }
 
+    @GetMapping
+    @Operation(summary = "Get all underwriting assessments (paginated)")
+    public ResponseEntity<Page<UnderwritingResponse>> getAllAssessments(Pageable pageable) {
+        Page<UnderwritingResponse> page = assessmentRepository.findAll(pageable)
+                .map(this::toResponse);
+        return ResponseEntity.ok(page);
+    }
+
     private UnderwritingResponse toResponse(com.freddieapp.underwriting.entity.UnderwritingAssessment assessment) {
         return UnderwritingResponse.builder()
                 .assessmentId(assessment.getAssessmentId())

@@ -114,6 +114,11 @@ public class LoanOriginationService {
         return toResponse(updatedLoan);
     }
 
+    public Page<LoanApplicationResponse> getAllLoans(Pageable pageable) {
+        return loanRepository.findAll(pageable)
+                .map(this::toResponse);
+    }
+
     private LoanApplicationResponse toResponse(LoanApplication loan) {
         return LoanApplicationResponse.builder()
                 .loanId(loan.getLoanId())

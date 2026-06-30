@@ -198,7 +198,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       SPRING_ZIPKIN_BASE_URL: http://zipkin:9411
       SPRING_PROFILES_ACTIVE: docker
 
@@ -224,8 +224,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_customer
       SPRING_DATASOURCE_USERNAME: freddie_admin
       SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
@@ -250,12 +251,15 @@ services:
       - "8082:8082"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle-db:1521/FREEPDB1
-      SPRING_DATASOURCE_USERNAME: freddie_loans
-      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_DATASOURCE_URL: "jdbc:h2:mem:loandb;DB_CLOSE_DELAY=-1;MODE=Oracle;DATABASE_TO_UPPER=false;INIT=CREATE SCHEMA IF NOT EXISTS freddie_loans"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.H2Dialect
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
 
   underwriting-service:
@@ -273,11 +277,14 @@ services:
       - "8083:8083"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:db2://db2-server:50000/FREDUWR
-      SPRING_DATASOURCE_USERNAME: freddie_uw
-      SPRING_DATASOURCE_PASSWORD: freddie_secret
+      SPRING_DATASOURCE_URL: "jdbc:h2:mem:underwritingdb;DB_CLOSE_DELAY=-1;MODE=DB2;DATABASE_TO_UPPER=false;INIT=CREATE SCHEMA IF NOT EXISTS freddie_uw"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.H2Dialect
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
 
   document-service:
@@ -299,7 +306,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_MONGODB_URI: mongodb://freddie_admin:freddie_secret@mongodb:27017/freddie_documents?authSource=admin
       SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
 
   notification-service:
@@ -323,7 +330,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_customer
       SPRING_DATASOURCE_USERNAME: freddie_admin
       SPRING_DATASOURCE_PASSWORD: freddie_secret
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
 
   messaging-service:
     build:
@@ -341,7 +348,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
 
   legacy-adapter-service:
     build:
@@ -359,7 +366,7 @@ services:
       LEGACY_SOAP_OSB_ENDPOINT: http://osb-host:7001
       LEGACY_SOAP_WSS_USERNAME: freddie-adapter-svc
       LEGACY_SOAP_WSS_PASSWORD: ${LEGACY_WSS_PASSWORD}
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
 
   card-service:
     build:
@@ -379,5 +386,5 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/freddie_cards
       SPRING_DATASOURCE_USERNAME: freddie_admin
       SPRING_DATASOURCE_PASSWORD: freddie_secret
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
 

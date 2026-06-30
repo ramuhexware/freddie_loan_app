@@ -57,4 +57,11 @@ public class LoanController {
         log.info("Submitting loanId={} to underwriting", loanId);
         return ResponseEntity.ok(loanOriginationService.submitForUnderwriting(loanId));
     }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('LOAN_OFFICER', 'UNDERWRITER', 'ADMIN')")
+    @Operation(summary = "Get all loan applications (paginated)")
+    public ResponseEntity<Page<LoanApplicationResponse>> getAllLoans(Pageable pageable) {
+        return ResponseEntity.ok(loanOriginationService.getAllLoans(pageable));
+    }
 }
