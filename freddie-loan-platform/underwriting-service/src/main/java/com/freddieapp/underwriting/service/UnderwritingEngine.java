@@ -3,6 +3,7 @@ package com.freddieapp.underwriting.service;
 import com.freddieapp.underwriting.client.LegacyAdapterClient;
 import com.freddieapp.underwriting.client.LegacyAdapterClient.CustomerVerificationResult;
 import com.freddieapp.underwriting.client.LegacyAdapterClient.LoanEligibilityResult;
+import com.freddieapp.underwriting.dto.AmortizationPayment;
 import com.freddieapp.underwriting.dto.UnderwritingRequest;
 import com.freddieapp.underwriting.dto.UnderwritingResponse;
 import com.freddieapp.underwriting.entity.UnderwritingAssessment;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -34,14 +37,23 @@ public class UnderwritingEngine {
     public UnderwritingResponse assessLoan(UnderwritingRequest request) {
         log.info("Starting automated underwriting assessment for loanId={}", request.getLoanId());
 
-        // 1. Invoke Legacy SOAP System via OSB to fetch Verification and Eligibility
         CustomerVerificationResult verification = legacyAdapterClient.verifyCustomer(request.getCustomerId());
-        LoanEligibilityResult eligibility = legacyAdapterClient.checkEligibility(request.getCustomerId(), request.getLoanAmount());
-
-        // Simulate credit score from bureau data or fallback
+        
+        // Calculate credit score first so we can pass it to the orchestrator
         int creditScore = 700; // default FICO
+        
+        LoanEligibilityResult eligibility = legacyAdapterClient.checkEligibility(
+                request.getLoanId(),
+                request.getCustomerId(),
+                "John Doe",
+                request.getLoanAmount(),
+                request.getPropertyValue(),
+                creditScore,
+                request.getAnnualIncome(),
+                request.getMonthlyDebt()
+        );
+
         if (eligibility.getBureauReference() != null && !eligibility.getBureauReference().isEmpty()) {
-            // parse score or derive it from reference hashes
             creditScore = Math.abs(eligibility.getBureauReference().hashCode() % 250) + 550;
         }
 
@@ -103,7 +115,103 @@ public class UnderwritingEngine {
         // 6. Emit Decision Event to Kafka
         kafkaTemplate.send("loan-lifecycle-events", saved.getLoanId(), saved.getDecision().name());
 
-        return toResponse(saved);
+        // 7. Perform Advanced Business Calculations (LLPA, PMI, and Amortization Schedule)
+        // LLPA Surcharge Calculation
+        double llpaVal = 0.0;
+        if (creditScore >= 740) {
+            if (ltv.doubleValue() <= 60.0) llpaVal = 0.0;
+            else if (ltv.doubleValue() <= 80.0) llpaVal = 0.25;
+            else llpaVal = 0.50;
+        } else if (creditScore >= 680) {
+            if (ltv.doubleValue() <= 60.0) llpaVal = 0.50;
+            else if (ltv.doubleValue() <= 80.0) llpaVal = 0.75;
+            else llpaVal = 1.25;
+        } else if (creditScore >= 620) {
+            if (ltv.doubleValue() <= 60.0) llpaVal = 1.00;
+            else if (ltv.doubleValue() <= 80.0) llpaVal = 1.75;
+            else llpaVal = 2.25;
+        } else {
+            if (ltv.doubleValue() <= 60.0) llpaVal = 1.50;
+            else if (ltv.doubleValue() <= 80.0) llpaVal = 2.50;
+            else llpaVal = 3.25;
+        }
+        BigDecimal llpaSurcharge = BigDecimal.valueOf(llpaVal).setScale(2, RoundingMode.HALF_UP);
+
+        // PMI Calculation
+        BigDecimal pmiMonthlyPremium = BigDecimal.ZERO;
+        if (ltv.doubleValue() > 80.0) {
+            double pmiAnnualRate = 0.005; // 0.5% default
+            if (creditScore < 680) pmiAnnualRate = 0.011; // 1.1%
+            else if (creditScore < 740) pmiAnnualRate = 0.0075; // 0.75%
+            pmiMonthlyPremium = request.getLoanAmount()
+                    .multiply(BigDecimal.valueOf(pmiAnnualRate))
+                    .divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+        }
+
+        // Base & Adjusted Interest Rates
+        BigDecimal baseInterestRate = BigDecimal.valueOf(6.50).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal adjustedInterestRate = baseInterestRate.add(llpaSurcharge).setScale(2, RoundingMode.HALF_UP);
+
+        // Generate monthly amortization schedule (capping at 360 payments for 30-year fixed)
+        List<AmortizationPayment> schedule = new ArrayList<>();
+        double monthlyRateVal = adjustedInterestRate.doubleValue() / 100.0 / 12.0;
+        double loanAmountVal = request.getLoanAmount().doubleValue();
+        int totalMonths = 360;
+
+        double monthlyBasePaymentVal = 0.0;
+        if (monthlyRateVal > 0) {
+            monthlyBasePaymentVal = loanAmountVal * (monthlyRateVal * Math.pow(1 + monthlyRateVal, totalMonths)) / (Math.pow(1 + monthlyRateVal, totalMonths) - 1);
+        } else {
+            monthlyBasePaymentVal = loanAmountVal / totalMonths;
+        }
+        BigDecimal monthlyBasePayment = BigDecimal.valueOf(monthlyBasePaymentVal).setScale(2, RoundingMode.HALF_UP);
+
+        double remainingBalanceVal = loanAmountVal;
+        double propertyValueVal = request.getPropertyValue().doubleValue();
+
+        for (int m = 1; m <= totalMonths; m++) {
+            double interestPaidVal = remainingBalanceVal * monthlyRateVal;
+            double principalPaidVal = monthlyBasePaymentVal - interestPaidVal;
+
+            if (remainingBalanceVal < principalPaidVal) {
+                principalPaidVal = remainingBalanceVal;
+                interestPaidVal = 0.0;
+            }
+
+            // Check if PMI is still required (LTV > 80%)
+            double currentLtvVal = (remainingBalanceVal / propertyValueVal) * 100.0;
+            BigDecimal currentPmi = BigDecimal.ZERO;
+            if (currentLtvVal > 80.0) {
+                currentPmi = pmiMonthlyPremium;
+            }
+
+            remainingBalanceVal -= principalPaidVal;
+            if (remainingBalanceVal < 0) remainingBalanceVal = 0;
+
+            BigDecimal totalPayment = BigDecimal.valueOf(principalPaidVal + interestPaidVal)
+                    .add(currentPmi)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            schedule.add(AmortizationPayment.builder()
+                    .monthNumber(m)
+                    .principalPaid(BigDecimal.valueOf(principalPaidVal).setScale(2, RoundingMode.HALF_UP))
+                    .interestPaid(BigDecimal.valueOf(interestPaidVal).setScale(2, RoundingMode.HALF_UP))
+                    .pmiPaid(currentPmi)
+                    .totalMonthlyPayment(totalPayment)
+                    .remainingPrincipal(BigDecimal.valueOf(remainingBalanceVal).setScale(2, RoundingMode.HALF_UP))
+                    .build());
+
+            if (remainingBalanceVal <= 0) break;
+        }
+
+        UnderwritingResponse response = toResponse(saved);
+        response.setLlpaSurcharge(llpaSurcharge);
+        response.setPmiMonthlyPremium(pmiMonthlyPremium);
+        response.setBaseInterestRate(baseInterestRate);
+        response.setAdjustedInterestRate(adjustedInterestRate);
+        response.setAmortizationSchedule(schedule);
+
+        return response;
     }
 
     @Transactional

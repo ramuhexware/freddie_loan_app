@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -24,4 +25,11 @@ public class UnderwritingResponse {
     private OffsetDateTime assessedAt;
     private String assessedBy;
     private String bureauReference;
+
+    // Premium LLPA & Amortization Analytics
+    private BigDecimal llpaSurcharge;
+    private BigDecimal pmiMonthlyPremium;
+    private BigDecimal baseInterestRate;
+    private BigDecimal adjustedInterestRate;
+    private List<AmortizationPayment> amortizationSchedule;
 }

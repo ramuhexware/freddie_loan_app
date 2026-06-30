@@ -76,6 +76,8 @@ Freddie_Style_Application/                       # Workspace root
     ├── messaging-service/                       # ActiveMQ JMS audit trail dispatch (Port: 8087)
     ├── legacy-adapter-service/                  # SOAP legacy client bridging service (Port: 8088)
     ├── legacy-admin-portal/                     # Servlet & JSP legacy portal webapp (Port: 8089)
+    ├── appraisal-service/                       # Property Appraisal & Valuation service (H2 DB, Port: 8090)
+    ├── funding-service/                         # Loan Disbursement & Settlement service (H2 DB, Port: 8091)
     │
     # ─── FRONTEND & DEPLOYMENT UTILITIES ───────────────────────────────────────
     ├── frontend/                                # Angular 18 Portal UI Client (Port: 4200)
@@ -85,13 +87,13 @@ Freddie_Style_Application/                       # Workspace root
 
 ### Parent-Child POM Relationships
 *   **Root Aggregator POM (`pom.xml`)**: Serves as the central parent POM (`com.freddieapp:freddie-loan-platform`). It inherits from `spring-boot-starter-parent` (version `3.2.5`) and consolidates versions for all common dependencies (e.g., Spring Cloud, Lombok, Springdoc, Resilience4j) under `<properties>` and `<dependencyManagement>`.
-*   **Child Modules**: All 11 child folders (including `legacy-admin-portal`) contain a `pom.xml` pointing back to the root POM as their `<parent>`, ensuring uniform compilation configurations, plugin dependencies, and version controls.
+*   **Child Modules**: All 13 child modules (including `appraisal-service` and `funding-service`) contain a `pom.xml` pointing back to the root POM as their `<parent>`, ensuring uniform compilation configurations, plugin dependencies, and version controls.
 
 ---
 
 ## 🔧 Configuration Management & Profiles
 
-The platform utilizes a modern, split-profile `.properties` configuration strategy for all 11 Spring Boot services. It strictly avoids `.yml` files to align with properties-driven environment management.
+The platform utilizes a modern, split-profile `.properties` configuration strategy for all 13 Spring Boot services. It strictly avoids `.yml` files to align with properties-driven environment management.
 
 Each microservice contains:
 1. **`application.properties`**: Contains all common, environment-agnostic system values (e.g., server port, Spring application name, Eureka registration configs, circuit breaker thresholds, logging patterns).
@@ -119,12 +121,12 @@ Follow these steps to compile the multi-module Maven parent-child project and ru
 ---
 
 ### Step 1: Build the Maven Backend Modules
-Run the clean and package command on the root aggregator POM to build all 11 Java projects:
+Run the clean and package command on the root aggregator POM to build all 13 Java projects:
 ```bash
 # Navigate to the consolidated project folder
 cd freddie-loan-platform
 
-# Compile and package all 11 modules at once
+# Compile and package all 13 modules at once
 mvn clean package -DskipTests
 ```
 This builds fat-jars for all services under their respective `target/` directories (e.g., `eureka-server/target/eureka-server-1.0.0-SNAPSHOT.jar`).

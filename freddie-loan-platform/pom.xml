@@ -50,6 +50,8 @@
         <module>legacy-adapter-service</module>
         <module>card-service</module>
         <module>legacy-admin-portal</module>
+        <module>appraisal-service</module>
+        <module>funding-service</module>
     </modules>
 
     <!-- ============================================================ -->

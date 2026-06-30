@@ -7,11 +7,11 @@ public class ObjectFactory {
 
     public ObjectFactory() {}
 
-    public LoanEligibilityRequest createLoanEligibilityRequest() {
-        return new LoanEligibilityRequest();
+    public EligibilityRequest createEligibilityRequest() {
+        return new EligibilityRequest();
     }
 
-    public LoanEligibilityResponse createLoanEligibilityResponse() {
-        return new LoanEligibilityResponse();
+    public EligibilityResponse createEligibilityResponse() {
+        return new EligibilityResponse();
     }
 }

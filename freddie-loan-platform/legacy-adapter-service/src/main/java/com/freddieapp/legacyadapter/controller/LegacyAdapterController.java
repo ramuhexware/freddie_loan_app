@@ -20,10 +20,17 @@ public class LegacyAdapterController {
 
     @GetMapping("/eligibility")
     public ResponseEntity<LoanEligibilityResult> checkLoanEligibility(
+            @RequestParam String loanId,
             @RequestParam String customerId,
-            @RequestParam BigDecimal loanAmount) {
-        log.info("REST request to check legacy eligibility: customerId={}, amount={}", customerId, loanAmount);
-        return ResponseEntity.ok(legacySoapClient.checkLoanEligibility(customerId, loanAmount));
+            @RequestParam String customerName,
+            @RequestParam BigDecimal loanAmount,
+            @RequestParam BigDecimal propertyValue,
+            @RequestParam int creditScore,
+            @RequestParam BigDecimal annualIncome,
+            @RequestParam BigDecimal monthlyDebt) {
+        log.info("REST request to check legacy eligibility: loanId={}, customerId={}, amount={}", loanId, customerId, loanAmount);
+        return ResponseEntity.ok(legacySoapClient.checkLoanEligibility(
+                loanId, customerId, customerName, loanAmount, propertyValue, creditScore, annualIncome, monthlyDebt));
     }
 
     @GetMapping("/verification")

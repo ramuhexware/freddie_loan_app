@@ -63,6 +63,102 @@ public class AdminDashboardServlet extends HttpServlet {
             // Keep default mock data
         }
 
+        // --- Interactive LLPA Pricing & Amortization Calculator Logic ---
+        String loanAmtStr = request.getParameter("calcLoanAmount");
+        String propValStr = request.getParameter("calcPropertyValue");
+        String ficoStr = request.getParameter("calcFicoScore");
+
+        if (loanAmtStr != null && propValStr != null && ficoStr != null) {
+            try {
+                double loanAmount = Double.parseDouble(loanAmtStr);
+                double propertyValue = Double.parseDouble(propValStr);
+                int creditScore = Integer.parseInt(ficoStr);
+
+                double ltv = (loanAmount / propertyValue) * 100.0;
+
+                // LLPA Fee Matrix
+                double llpa = 0.0;
+                if (creditScore >= 740) {
+                    if (ltv <= 60.0) llpa = 0.0;
+                    else if (ltv <= 80.0) llpa = 0.25;
+                    else llpa = 0.50;
+                } else if (creditScore >= 680) {
+                    if (ltv <= 60.0) llpa = 0.50;
+                    else if (ltv <= 80.0) llpa = 0.75;
+                    else llpa = 1.25;
+                } else if (creditScore >= 620) {
+                    if (ltv <= 60.0) llpa = 1.00;
+                    else if (ltv <= 80.0) llpa = 1.75;
+                    else llpa = 2.25;
+                } else {
+                    if (ltv <= 60.0) llpa = 1.50;
+                    else if (ltv <= 80.0) llpa = 2.50;
+                    else llpa = 3.25;
+                }
+
+                // PMI Surcharge if LTV > 80%
+                double pmiMonthly = 0.0;
+                if (ltv > 80.0) {
+                    double pmiAnnualRate = 0.005;
+                    if (creditScore < 680) pmiAnnualRate = 0.011;
+                    else if (creditScore < 740) pmiAnnualRate = 0.0075;
+                    pmiMonthly = (loanAmount * pmiAnnualRate) / 12.0;
+                }
+
+                double baseRate = 6.50;
+                double adjustedRate = baseRate + llpa;
+
+                // 30-Year Amortization Schedule (first 36 months preview)
+                List<Map<String, Object>> schedule = new ArrayList<>();
+                double monthlyRate = adjustedRate / 100.0 / 12.0;
+                int totalMonths = 360;
+                double monthlyBasePayment = 0.0;
+                
+                if (monthlyRate > 0) {
+                    monthlyBasePayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / (Math.pow(1 + monthlyRate, totalMonths) - 1);
+                } else {
+                    monthlyBasePayment = loanAmount / totalMonths;
+                }
+
+                double remainingBalance = loanAmount;
+                for (int m = 1; m <= totalMonths; m++) {
+                    double interestPaid = remainingBalance * monthlyRate;
+                    double principalPaid = monthlyBasePayment - interestPaid;
+                    if (remainingBalance < principalPaid) {
+                        principalPaid = remainingBalance;
+                        interestPaid = 0.0;
+                    }
+
+                    double currentLtv = (remainingBalance / propertyValue) * 100.0;
+                    double currentPmi = (currentLtv > 80.0) ? pmiMonthly : 0.0;
+                    remainingBalance -= principalPaid;
+                    if (remainingBalance < 0) remainingBalance = 0;
+
+                    if (m <= 36 || remainingBalance <= 0) {
+                        Map<String, Object> payment = new HashMap<>();
+                        payment.put("monthNumber", m);
+                        payment.put("principalPaid", principalPaid);
+                        payment.put("interestPaid", interestPaid);
+                        payment.put("pmiPaid", currentPmi);
+                        payment.put("totalPayment", principalPaid + interestPaid + currentPmi);
+                        payment.put("remainingPrincipal", remainingBalance);
+                        schedule.add(payment);
+                    }
+                    if (remainingBalance <= 0) break;
+                }
+
+                request.setAttribute("calcLtv", ltv);
+                request.setAttribute("calcLlpa", llpa);
+                request.setAttribute("calcPmi", pmiMonthly);
+                request.setAttribute("calcAdjustedRate", adjustedRate);
+                request.setAttribute("calcSchedule", schedule);
+                request.setAttribute("showCalculatorResults", true);
+
+            } catch (Exception ex) {
+                request.setAttribute("calcError", "Invalid numerical inputs. Please check your data.");
+            }
+        }
+
         request.setAttribute("stats", stats);
         request.setAttribute("applications", loanApplications);
 

@@ -13,8 +13,14 @@ public interface LegacyAdapterClient {
 
     @GetMapping("/eligibility")
     LoanEligibilityResult checkEligibility(
+            @RequestParam("loanId") String loanId,
             @RequestParam("customerId") String customerId,
-            @RequestParam("loanAmount") BigDecimal loanAmount);
+            @RequestParam("customerName") String customerName,
+            @RequestParam("loanAmount") BigDecimal loanAmount,
+            @RequestParam("propertyValue") BigDecimal propertyValue,
+            @RequestParam("creditScore") int creditScore,
+            @RequestParam("annualIncome") BigDecimal annualIncome,
+            @RequestParam("monthlyDebt") BigDecimal monthlyDebt);
 
     @GetMapping("/verification")
     CustomerVerificationResult verifyCustomer(@RequestParam("customerId") String customerId);

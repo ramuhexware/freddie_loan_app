@@ -195,6 +195,119 @@
         .action-btn:hover {
             background-color: #1a4276;
         }
+
+        .calculator-card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+            border: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+
+        .calculator-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+            align-items: flex-end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .form-group input {
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-color);
+        }
+
+        .calc-submit-btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .calc-submit-btn:hover {
+            background-color: #0096b4;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            background-color: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed var(--accent-color);
+        }
+
+        .result-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .result-value {
+            font-size: 18px;
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .table-scrollable {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .table-scrollable th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .alert-danger {
+            background-color: rgba(230, 57, 70, 0.1);
+            color: #e63946;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border: 1px solid rgba(230, 57, 70, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -267,6 +380,102 @@
                     </c:forEach>
                 </tbody>
             </table>
+        </section>
+
+        <section class="calculator-card">
+            <h2>Interactive LLPA Pricing &amp; Amortization Calculator</h2>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px; margin-bottom: 24px;">
+                Calculate Loan-to-Value (LTV), Risk Surcharge (LLPA), Private Mortgage Insurance (PMI), and generate a 30-Year Fixed Amortization Schedule.
+            </p>
+
+            <c:if test="${not empty calcError}">
+                <div class="alert-danger">${calcError}</div>
+            </c:if>
+
+            <form action="dashboard" method="GET" class="calculator-form">
+                <div class="form-group">
+                    <label for="calcLoanAmount">Loan Amount ($)</label>
+                    <input type="number" id="calcLoanAmount" name="calcLoanAmount" value="${empty param.calcLoanAmount ? '300000' : param.calcLoanAmount}" required>
+                </div>
+                <div class="form-group">
+                    <label for="calcPropertyValue">Property Value ($)</label>
+                    <input type="number" id="calcPropertyValue" name="calcPropertyValue" value="${empty param.calcPropertyValue ? '375000' : param.calcPropertyValue}" required>
+                </div>
+                <div class="form-group">
+                    <label for="calcFicoScore">FICO Credit Score</label>
+                    <input type="number" id="calcFicoScore" name="calcFicoScore" value="${empty param.calcFicoScore ? '720' : param.calcFicoScore}" min="300" max="850" required>
+                </div>
+                <div>
+                    <button type="submit" class="calc-submit-btn">Project Payments</button>
+                </div>
+            </form>
+
+            <c:if test="${showCalculatorResults}">
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="result-label">Loan-to-Value (LTV)</div>
+                        <div class="result-value">
+                            <fmt:formatNumber value="${calcLtv}" maxFractionDigits="2"/>%
+                        </div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">LLPA Risk Surcharge</div>
+                        <div class="result-value">
+                            <fmt:formatNumber value="${calcLlpa}" maxFractionDigits="2"/>%
+                        </div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">PMI Monthly Premium</div>
+                        <div class="result-value">
+                            <fmt:formatNumber value="${calcPmi}" type="currency" currencySymbol="$" maxFractionDigits="2"/>
+                        </div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Adjusted Interest Rate</div>
+                        <div class="result-value">
+                            <fmt:formatNumber value="${calcAdjustedRate}" maxFractionDigits="2"/>%
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 30px; margin-bottom: 10px; color: var(--primary-color);">Amortization Schedule Preview (First 36 Months)</h3>
+                <div class="table-scrollable">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Principal Paid</th>
+                                <th>Interest Paid</th>
+                                <th>PMI Premium</th>
+                                <th>Total Payment</th>
+                                <th>Remaining Principal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <c:forEach var="payment" items="${calcSchedule}">
+                                <tr>
+                                    <td><strong>Month ${payment.monthNumber}</strong></td>
+                                    <td>
+                                        <fmt:formatNumber value="${payment.principalPaid}" type="currency" currencySymbol="$"/>
+                                    </td>
+                                    <td>
+                                        <fmt:formatNumber value="${payment.interestPaid}" type="currency" currencySymbol="$"/>
+                                    </td>
+                                    <td>
+                                        <fmt:formatNumber value="${payment.pmiPaid}" type="currency" currencySymbol="$"/>
+                                    </td>
+                                    <td>
+                                        <strong style="color: var(--primary-color);"><fmt:formatNumber value="${payment.totalPayment}" type="currency" currencySymbol="$"/></strong>
+                                    </td>
+                                    <td>
+                                        <fmt:formatNumber value="${payment.remainingPrincipal}" type="currency" currencySymbol="$"/>
+                                    </td>
+                                </tr>
+                            </c:forEach>
+                        </tbody>
+                    </table>
+                </div>
+            </c:if>
         </section>
     </div>
 </body>

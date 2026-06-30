@@ -13,31 +13,46 @@ import org.springframework.ws.soap.client.SoapFaultClientException;
 @RequiredArgsConstructor
 public class LegacySoapClient {
 
+    private final WebServiceTemplate loanApprovalTemplate;
     private final WebServiceTemplate loanEligibilityTemplate;
     private final WebServiceTemplate customerVerificationTemplate;
 
     @CircuitBreaker(name = "legacy-loan-eligibility", fallbackMethod = "loanEligibilityFallback")
     @Retry(name = "legacy-loan-eligibility")
-    public LoanEligibilityResult checkLoanEligibility(String customerId, java.math.BigDecimal loanAmount) {
-        log.info("Calling legacy loan eligibility via OSB: customerId={} amount={}", customerId, loanAmount);
+    public LoanEligibilityResult checkLoanEligibility(
+            String loanId,
+            String customerId,
+            String customerName,
+            java.math.BigDecimal loanAmount,
+            java.math.BigDecimal propertyValue,
+            int creditScore,
+            java.math.BigDecimal annualIncome,
+            java.math.BigDecimal monthlyDebt) {
+        log.info("Calling BPEL loan approval process: loanId={} customerId={} amount={}", loanId, customerId, loanAmount);
         try {
-            com.freddieapp.legacyadapter.wsdl.loaneligibility.LoanEligibilityRequest request = 
-                    new com.freddieapp.legacyadapter.wsdl.loaneligibility.LoanEligibilityRequest();
+            com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalRequest request = 
+                    new com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalRequest();
+            request.setLoanId(loanId);
             request.setCustomerId(customerId);
+            request.setCustomerName(customerName);
             request.setLoanAmount(loanAmount);
+            request.setPropertyValue(propertyValue);
+            request.setCreditScore(creditScore);
+            request.setAnnualIncome(annualIncome);
+            request.setMonthlyDebt(monthlyDebt);
 
-            com.freddieapp.legacyadapter.wsdl.loaneligibility.LoanEligibilityResponse response = 
-                    (com.freddieapp.legacyadapter.wsdl.loaneligibility.LoanEligibilityResponse) loanEligibilityTemplate
+            com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalResponse response = 
+                    (com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalResponse) loanApprovalTemplate
                             .marshalSendAndReceive(request);
 
             return LoanEligibilityResult.builder()
-                    .eligible(response.isEligible())
-                    .reason(response.getReason())
-                    .bureauReference(response.getBureauReference())
+                    .eligible(response.isApproved())
+                    .reason(response.getDecisionReason())
+                    .bureauReference(response.getOrchestrationStatus())
                     .build();
         } catch (SoapFaultClientException ex) {
-            log.error("SOAP fault from legacy loan eligibility: {}", ex.getFaultStringOrReason());
-            throw new LegacySoapException("Loan eligibility SOAP fault: " + ex.getFaultStringOrReason(), ex);
+            log.error("SOAP fault from BPEL loan approval: {}", ex.getFaultStringOrReason());
+            throw new LegacySoapException("Loan approval SOAP fault: " + ex.getFaultStringOrReason(), ex);
         }
     }
 
@@ -66,9 +81,17 @@ public class LegacySoapClient {
 
     // ─── Fallback Methods ─────────────────────────────────────────────────────
 
-    public LoanEligibilityResult loanEligibilityFallback(String customerId,
-            java.math.BigDecimal loanAmount, Throwable ex) {
-        log.warn("Loan eligibility circuit open for customerId={}. Returning default.", customerId);
+    public LoanEligibilityResult loanEligibilityFallback(
+            String loanId,
+            String customerId,
+            String customerName,
+            java.math.BigDecimal loanAmount,
+            java.math.BigDecimal propertyValue,
+            int creditScore,
+            java.math.BigDecimal annualIncome,
+            java.math.BigDecimal monthlyDebt,
+            Throwable ex) {
+        log.warn("Loan eligibility circuit open for customerId={}. Returning default. Error: {}", customerId, ex.getMessage());
         return LoanEligibilityResult.builder().eligible(false).reason("Legacy system temporarily unavailable").build();
     }
 
