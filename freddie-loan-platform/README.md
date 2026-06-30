@@ -75,6 +75,7 @@ Freddie_Style_Application/                       # Workspace root
     ├── notification-service/                    # Kafka consumer for life-cycle alerts (Port: 8086)
     ├── messaging-service/                       # ActiveMQ JMS audit trail dispatch (Port: 8087)
     ├── legacy-adapter-service/                  # SOAP legacy client bridging service (Port: 8088)
+    ├── legacy-admin-portal/                     # Servlet & JSP legacy portal webapp (Port: 8089)
     │
     # ─── FRONTEND & DEPLOYMENT UTILITIES ───────────────────────────────────────
     ├── frontend/                                # Angular 18 Portal UI Client (Port: 4200)
@@ -84,7 +85,24 @@ Freddie_Style_Application/                       # Workspace root
 
 ### Parent-Child POM Relationships
 *   **Root Aggregator POM (`pom.xml`)**: Serves as the central parent POM (`com.freddieapp:freddie-loan-platform`). It inherits from `spring-boot-starter-parent` (version `3.2.5`) and consolidates versions for all common dependencies (e.g., Spring Cloud, Lombok, Springdoc, Resilience4j) under `<properties>` and `<dependencyManagement>`.
-*   **Child Modules**: All 10 microservice folders contain a `pom.xml` pointing back to the root POM as their `<parent>`, ensuring uniform compilation configurations, plugin dependencies (like `spring-boot-maven-plugin`), and version controls.
+*   **Child Modules**: All 11 child folders (including `legacy-admin-portal`) contain a `pom.xml` pointing back to the root POM as their `<parent>`, ensuring uniform compilation configurations, plugin dependencies, and version controls.
+
+---
+
+## 🔧 Configuration Management & Profiles
+
+The platform utilizes a modern, split-profile `.properties` configuration strategy for all 11 Spring Boot services. It strictly avoids `.yml` files to align with properties-driven environment management.
+
+Each microservice contains:
+1. **`application.properties`**: Contains all common, environment-agnostic system values (e.g., server port, Spring application name, Eureka registration configs, circuit breaker thresholds, logging patterns).
+2. **`application-local.properties`** & **`application.local.properties`**: Contains local, developer-specific connection strings and credentials (e.g., PostgreSQL/Oracle/DB2/MongoDB connection URLs, usernames, passwords, local Apache Kafka bootstrap servers, ActiveMQ brokers, and Zipkin tracer endpoints).
+
+### Running with active local profile:
+When launching any service locally, make sure to activate the `local` profile to merge these properties:
+```bash
+# Run with local profile activated
+mvn spring-boot:run -pl :customer-service -Dspring.profiles.active=local
+```
 
 ---
 
@@ -145,10 +163,25 @@ docker compose up --build -d
 
 ---
 
-### Step 4: Shutting Down the Stack
+### Step 4: Run the JSP & Servlet Legacy Admin Portal (Optional)
+The new Servlet and JSP-based admin dashboard can be run independently:
+1. Navigate back to the root folder:
+   ```bash
+   cd ../
+   ```
+2. Run the legacy admin module using the Spring Boot Maven plugin:
+   ```bash
+   mvn spring-boot:run -pl :legacy-admin-portal
+   ```
+3. Open your browser and navigate to:
+   👉 **`http://localhost:8089/admin/dashboard`**
+
+---
+
+### Step 5: Shutting Down the Stack
 To tear down the container environments and clean volumes:
 ```bash
-cd ../deployment
+cd deployment
 docker compose down -v
 ```
 

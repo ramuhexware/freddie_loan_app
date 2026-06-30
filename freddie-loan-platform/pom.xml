@@ -49,6 +49,7 @@
         <module>messaging-service</module>
         <module>legacy-adapter-service</module>
         <module>card-service</module>
+        <module>legacy-admin-portal</module>
     </modules>
 
     <!-- ============================================================ -->
