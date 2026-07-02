@@ -118,13 +118,13 @@ Follow these steps to compile the projects and run them locally.
 
 ### Prerequisites
 *   **Java Runtime**: JDK 17 (standard modules) and JDK 21 (required for `underwriting-service`). Ensure your `JAVA_HOME` or active shell supports compilation using JDK 21.
-*   **Build Tools**: Maven 3.8+ and Gradle 8.x+
+*   **Build Tools**: Maven 3.8+ (Gradle is built internally in Docker; no local Gradle installation required)
 *   **UI Tooling**: Node.js 18+ & npm
 *   **Containerization**: Docker Desktop & Docker Compose
 
 ---
 
-### Step 1: Build the Backend Modules (Maven & Gradle)
+### Step 1: Build the Backend Modules
 1. **Build Maven-managed modules**:
    Run the clean and package command on the root aggregator POM to build the 14 Java modules:
    ```bash
@@ -136,14 +136,10 @@ Follow these steps to compile the projects and run them locally.
    ```
    This builds fat-jars under their respective `target/` directories (e.g., `eureka-server/target/eureka-server-1.0.0-SNAPSHOT.jar`).
 
-2. **Build Gradle-managed module**:
-   Navigate to the `notification-service` directory and build:
-   ```bash
-   cd notification-service
-   gradle clean build -x test
-   cd ..
-   ```
-   This compiles and packs the notification application using Gradle.
+2. **Gradle-managed module (`notification-service`)**:
+   - You **do not** need to build the Gradle project locally.
+   - The `notification-service` is containerized using a multi-stage Dockerfile that compiles and packages the code internally inside the container during Step 2.
+
 
 ---
 
