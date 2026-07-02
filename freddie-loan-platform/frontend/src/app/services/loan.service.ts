@@ -97,18 +97,17 @@ export class LoanService {
 
   getApplications(): Observable<LoanApplication[]> {
     if (this.useRealBackend) {
-      return this.http.get<any[]>(`${this.backendBase}/loans`).pipe(
+      this.http.get<any[]>(`${this.backendBase}/loans`).pipe(
         map(backendApps => backendApps.map(app => this.mapToFrontendModel(app))),
-        tap(apps => {
-          if (apps && apps.length > 0) {
-            this.applicationsSubject.next(apps);
-          }
-        }),
         catchError(err => {
           console.warn('Real backend fetch failed. Falling back to local in-memory Mock Sandbox Mode.', err);
-          return this.applicationsSubject.asObservable();
+          return of(this.mockApplications);
         })
-      );
+      ).subscribe(apps => {
+        if (apps && apps.length > 0) {
+          this.applicationsSubject.next(apps);
+        }
+      });
     }
     return this.applicationsSubject.asObservable();
   }

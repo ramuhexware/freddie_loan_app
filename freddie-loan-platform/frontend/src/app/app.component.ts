@@ -54,6 +54,8 @@ export class AppComponent implements OnInit {
   // Document Uploads
   uploadDocType = 'INCOME_PROOF';
   uploadedFiles: { [loanId: string]: string[] } = {};
+  selectedFile: File | null = null;
+  myActiveApp: LoanApplication | null = null;
   
   // Audits logs
   auditLogs: AuditLog[] = [
@@ -66,10 +68,37 @@ export class AppComponent implements OnInit {
   ngOnInit() {
     this.loanService.getApplications().subscribe(apps => {
       this.applications = apps;
-      if (!this.selectedApp && apps.length > 0) {
-        this.selectedApp = apps[0];
+      if (apps.length > 0) {
+        if (!this.selectedApp) {
+          this.selectedApp = apps[0];
+        } else {
+          const updated = apps.find(a => a.loanId === this.selectedApp?.loanId);
+          if (updated) {
+            this.selectedApp = updated;
+          }
+        }
+        if (this.myActiveApp) {
+          const updatedActive = apps.find(a => a.loanId === this.myActiveApp?.loanId);
+          if (updatedActive) {
+            this.myActiveApp = updatedActive;
+          }
+        }
       }
     });
+  }
+
+  get borrowerActiveApp(): LoanApplication | null {
+    if (this.myActiveApp) {
+      return this.myActiveApp;
+    }
+    const sessionApp = this.applications.find(a => a.customerId === this.formCustomerId);
+    if (sessionApp) {
+      return sessionApp;
+    }
+    if (this.applications.length > 0) {
+      return [...this.applications].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+    }
+    return null;
   }
 
   selectLoginRole(role: typeof this.selectedLoginRole) {
@@ -168,6 +197,7 @@ export class AppComponent implements OnInit {
     this.loanService.submitApplication(payload).subscribe(newApp => {
       this.addAuditLog(this.activeRole + '_ACTION', `Submitted loan application ${newApp.loanId} for ${newApp.customerName}`);
       this.selectedApp = newApp;
+      this.myActiveApp = newApp;
       if (this.activeRole === 'Borrower') {
         this.activeTab = 'borrowerStatus';
       } else {
@@ -214,11 +244,30 @@ export class AppComponent implements OnInit {
     });
   }
 
-  simulateFileUpload(app: LoanApplication, fileInput: HTMLInputElement) {
-    if (fileInput.files && fileInput.files[0]) {
-      const fileName = fileInput.files[0].name;
+  onFileSelected(event: any) {
+    const element = event.currentTarget as HTMLInputElement;
+    const fileList = element.files;
+    if (fileList && fileList.length > 0) {
+      const file = fileList[0];
+      const maxSizeBytes = 50 * 1024 * 1024; // 50MB limit
+      if (file.size > maxSizeBytes) {
+        alert('File size exceeds the 50MB limit. Please select a smaller document.');
+        this.selectedFile = null;
+        element.value = '';
+      } else {
+        this.selectedFile = file;
+      }
+    } else {
+      this.selectedFile = null;
+    }
+  }
+
+  uploadSelectedFile(app: LoanApplication, fileInput: HTMLInputElement) {
+    if (this.selectedFile) {
+      const fileName = this.selectedFile.name;
       this.loanService.addDocument(app.loanId, fileName, this.uploadDocType).subscribe(() => {
         this.addAuditLog('GRIDFS_UPLOAD', `Streamed binary ${fileName} to Reactive GridFS database. Map tag: ${this.uploadDocType}`);
+        this.selectedFile = null;
         fileInput.value = '';
       });
     }

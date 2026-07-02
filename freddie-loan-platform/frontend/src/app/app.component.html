@@ -302,7 +302,7 @@
         <p class="subtitle">Real-time status tracker of your Freddie Mac home loan application.</p>
 
         <!-- No Application State -->
-        <div *ngIf="applications.length === 0" style="text-align: center; padding: 40px; color: var(--color-muted);">
+        <div *ngIf="!borrowerActiveApp" style="text-align: center; padding: 40px; color: var(--color-muted);">
           <i class="fa-solid fa-folder-open" style="font-size: 3rem; margin-bottom: 15px; display: block; color: var(--border-color);"></i>
           <p>You have not submitted any mortgage applications yet.</p>
           <button class="btn btn-primary" (click)="selectTab('origination')" style="margin-top: 15px;">
@@ -311,16 +311,16 @@
         </div>
 
         <!-- Application Found -->
-        <div *ngIf="applications.length > 0">
+        <div *ngIf="borrowerActiveApp">
           <!-- Get the last application -->
           <div class="app-summary-uw" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 24px; margin-bottom: 30px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
               <div>
-                <span class="loan-id-tag">{{ applications[applications.length - 1].loanId }}</span>
-                <span style="margin-left: 10px; font-weight: 500; font-size: 1.1rem;">{{ applications[applications.length - 1].loanType }}</span>
+                <span class="loan-id-tag">{{ borrowerActiveApp.loanId }}</span>
+                <span style="margin-left: 10px; font-weight: 500; font-size: 1.1rem;">{{ borrowerActiveApp.loanType }}</span>
               </div>
-              <span class="status-badge" [ngClass]="applications[applications.length - 1].status.toLowerCase()">
-                {{ applications[applications.length - 1].status }}
+              <span class="status-badge" [ngClass]="borrowerActiveApp.status.toLowerCase()">
+                {{ borrowerActiveApp.status }}
               </span>
             </div>
 
@@ -336,28 +336,28 @@
               </div>
               <!-- Connector -->
               <div style="height: 2px; flex: 1; background-color: var(--border-color);"
-                   [style.background-color]="applications[applications.length - 1].status !== 'SUBMITTED' ? 'var(--color-success)' : 'var(--border-color)'"></div>
+                   [style.background-color]="borrowerActiveApp.status !== 'SUBMITTED' ? 'var(--color-success)' : 'var(--border-color)'"></div>
               <!-- Step 2: Underwriting -->
               <div style="display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; position: relative;">
                 <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600;"
-                     [style.background-color]="applications[applications.length - 1].status !== 'SUBMITTED' ? 'var(--color-warning)' : 'rgba(255,255,255,0.05)'"
-                     [style.color]="applications[applications.length - 1].status !== 'SUBMITTED' ? '#000' : 'var(--color-muted)'">
-                  <i class="fa-solid fa-shield-halved" *ngIf="applications[applications.length - 1].status === 'SUBMITTED' || applications[applications.length - 1].status === 'UNDER_REVIEW'"></i>
-                  <i class="fa-solid fa-check" *ngIf="applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED'"></i>
+                     [style.background-color]="borrowerActiveApp.status !== 'SUBMITTED' ? 'var(--color-warning)' : 'rgba(255,255,255,0.05)'"
+                     [style.color]="borrowerActiveApp.status !== 'SUBMITTED' ? '#000' : 'var(--color-muted)'">
+                  <i class="fa-solid fa-shield-halved" *ngIf="borrowerActiveApp.status === 'SUBMITTED' || borrowerActiveApp.status === 'UNDER_REVIEW'"></i>
+                  <i class="fa-solid fa-check" *ngIf="borrowerActiveApp.status === 'APPROVED' || borrowerActiveApp.status === 'REJECTED'"></i>
                 </div>
                 <span style="font-size: 0.8rem; margin-top: 8px; font-weight: 600;">Risk Assessment</span>
               </div>
               <!-- Connector -->
               <div style="height: 2px; flex: 1; background-color: var(--border-color);"
-                   [style.background-color]="(applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED') ? 'var(--color-success)' : 'var(--border-color)'"></div>
+                   [style.background-color]="(borrowerActiveApp.status === 'APPROVED' || borrowerActiveApp.status === 'REJECTED') ? 'var(--color-success)' : 'var(--border-color)'"></div>
               <!-- Step 3: Decision -->
               <div style="display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; position: relative;">
                 <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600;"
-                     [style.background-color]="applications[applications.length - 1].status === 'APPROVED' ? 'var(--color-success)' : (applications[applications.length - 1].status === 'REJECTED' ? 'var(--color-danger)' : 'rgba(255,255,255,0.05)')"
-                     [style.color]="(applications[applications.length - 1].status === 'APPROVED' || applications[applications.length - 1].status === 'REJECTED') ? '#fff' : 'var(--color-muted)'">
-                  <i class="fa-solid fa-circle-check" *ngIf="applications[applications.length - 1].status === 'APPROVED'"></i>
-                  <i class="fa-solid fa-circle-xmark" *ngIf="applications[applications.length - 1].status === 'REJECTED'"></i>
-                  <i class="fa-solid fa-hourglass-start" *ngIf="applications[applications.length - 1].status === 'SUBMITTED' || applications[applications.length - 1].status === 'UNDER_REVIEW'"></i>
+                     [style.background-color]="borrowerActiveApp.status === 'APPROVED' ? 'var(--color-success)' : (borrowerActiveApp.status === 'REJECTED' ? 'var(--color-danger)' : 'rgba(255,255,255,0.05)')"
+                     [style.color]="(borrowerActiveApp.status === 'APPROVED' || borrowerActiveApp.status === 'REJECTED') ? '#fff' : 'var(--color-muted)'">
+                  <i class="fa-solid fa-circle-check" *ngIf="borrowerActiveApp.status === 'APPROVED'"></i>
+                  <i class="fa-solid fa-circle-xmark" *ngIf="borrowerActiveApp.status === 'REJECTED'"></i>
+                  <i class="fa-solid fa-hourglass-start" *ngIf="borrowerActiveApp.status === 'SUBMITTED' || borrowerActiveApp.status === 'UNDER_REVIEW'"></i>
                 </div>
                 <span style="font-size: 0.8rem; margin-top: 8px; font-weight: 600;">Decision Output</span>
               </div>
@@ -367,21 +367,21 @@
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px;">
               <div>
                 <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Requested Loan Amount</label>
-                <span style="font-size: 1.1rem; font-weight: 600;">${{ applications[applications.length - 1].loanAmount | number }}</span>
+                <span style="font-size: 1.1rem; font-weight: 600;">${{ borrowerActiveApp.loanAmount | number }}</span>
               </div>
               <div>
                 <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Appraisal Valuation</label>
-                <span style="font-size: 1.1rem; font-weight: 600;">${{ applications[applications.length - 1].propertyValue | number }}</span>
+                <span style="font-size: 1.1rem; font-weight: 600;">${{ borrowerActiveApp.propertyValue | number }}</span>
               </div>
               <div>
                 <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">FICO Score Check</label>
-                <span style="font-size: 1.1rem; font-weight: 600;">{{ applications[applications.length - 1].creditScore }}</span>
+                <span style="font-size: 1.1rem; font-weight: 600;">{{ borrowerActiveApp.creditScore }}</span>
               </div>
               <div>
                 <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); font-weight: 600; display: block; margin-bottom: 4px;">Automated Decision Output</label>
                 <span class="decision-reason" style="display: block; font-weight: 500; font-size: 0.85rem;"
-                      [style.border-left-color]="applications[applications.length - 1].status === 'APPROVED' ? 'var(--color-success)' : (applications[applications.length - 1].status === 'REJECTED' ? 'var(--color-danger)' : 'var(--color-warning)')">
-                  {{ applications[applications.length - 1].decisionReason || 'Undergoing automated assessment guidelines checks...' }}
+                      [style.border-left-color]="borrowerActiveApp.status === 'APPROVED' ? 'var(--color-success)' : (borrowerActiveApp.status === 'REJECTED' ? 'var(--color-danger)' : 'var(--color-warning)')">
+                  {{ borrowerActiveApp.decisionReason || 'Undergoing automated assessment guidelines checks...' }}
                 </span>
               </div>
             </div>
@@ -392,14 +392,14 @@
             <h3>Mortgage Asset Verification Files</h3>
             <p class="subtitle" style="margin-bottom: 15px; font-size: 0.85rem;">Verification status of files uploaded to the Reactive GridFS document repository.</p>
             <div class="documents-grid-view">
-              <div class="doc-card" *ngFor="let file of (uploadedFiles[applications[applications.length - 1].loanId] || [])">
+              <div class="doc-card" *ngFor="let doc of (borrowerActiveApp.documents || [])">
                 <i class="fa-solid fa-file-circle-check doc-icon" style="color: var(--color-success);"></i>
                 <div class="doc-details">
-                  <h4>{{ file }}</h4>
-                  <span class="tag">GridFS Hash Checked</span>
+                  <h4>{{ doc.fileName }}</h4>
+                  <span class="tag">{{ doc.type }} ({{ doc.status }})</span>
                 </div>
               </div>
-              <div class="doc-card" *ngIf="!(uploadedFiles[applications[applications.length - 1].loanId] && uploadedFiles[applications[applications.length - 1].loanId].length > 0)">
+              <div class="doc-card" *ngIf="!(borrowerActiveApp.documents && borrowerActiveApp.documents.length > 0)">
                 <i class="fa-solid fa-triangle-exclamation doc-icon" style="color: var(--color-warning);"></i>
                 <div class="doc-details">
                   <h4>Pending Income Documentation</h4>
@@ -495,19 +495,29 @@
           <h2>Reactive Document Store (GridFS Client)</h2>
           <p class="subtitle">Upload asset papers, credit details, or appraisers reports to MongoDB Reactive GridFS. Target Loan: {{ selectedApp.loanId }}</p>
 
-          <div class="upload-control-row">
-            <div class="form-group select-type-group">
-              <label>Document Classification Type</label>
-              <select class="form-control" [(ngModel)]="uploadDocType">
-                <option value="INCOME_PROOF">W2 / Pay Stub Income Proof</option>
-                <option value="IDENTIFICATION">Identity (Driver License / SSN)</option>
-                <option value="PROPERTY_APPRAISAL">Property Appraisal Document</option>
-                <option value="CLOSING_DISCLOSURE">Closing Disclosure Document</option>
-              </select>
+          <div class="upload-control-row" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+            <div style="display: flex; gap: 15px; width: 100%; flex-wrap: wrap;">
+              <div class="form-group select-type-group" style="flex: 1; min-width: 250px;">
+                <label>Document Classification Type</label>
+                <select class="form-control" [(ngModel)]="uploadDocType">
+                  <option value="INCOME_PROOF">W2 / Pay Stub Income Proof</option>
+                  <option value="IDENTIFICATION">Identity (Driver License / SSN)</option>
+                  <option value="PROPERTY_APPRAISAL">Property Appraisal Document</option>
+                  <option value="CLOSING_DISCLOSURE">Closing Disclosure Document</option>
+                </select>
+              </div>
+              <div class="form-group file-input-group" style="flex: 1; min-width: 250px;">
+                <label>Select Document File <span style="font-size: 0.75rem; color: var(--color-muted); font-weight: normal; margin-left: 5px;">(Max size: 50MB)</span></label>
+                <input type="file" #fileInput class="form-control file-input" (change)="onFileSelected($event)">
+              </div>
             </div>
-            <div class="form-group file-input-group">
-              <label>Select Document File</label>
-              <input type="file" #fileInput class="form-control file-input" (change)="simulateFileUpload(selectedApp, fileInput)">
+            <div *ngIf="selectedFile" style="display: flex; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--color-primary); border-radius: 8px; padding: 12px 16px;">
+              <div style="display: flex; align-items: center; gap: 8px; color: var(--color-primary); font-weight: 500; font-size: 0.9rem;">
+                <i class="fa-solid fa-file-invoice"></i> Selected: {{ selectedFile.name }} ({{ selectedFile.size | number }} bytes)
+              </div>
+              <button type="button" class="btn btn-primary" (click)="uploadSelectedFile(selectedApp, fileInput)" style="padding: 8px 16px; font-size: 0.85rem;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload to GridFS
+              </button>
             </div>
           </div>
 
