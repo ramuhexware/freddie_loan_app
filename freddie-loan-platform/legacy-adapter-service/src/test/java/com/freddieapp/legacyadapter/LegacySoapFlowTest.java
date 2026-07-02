@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT, properties = {
     "server.port=9999",
     "legacy.soap.osb.endpoint.loan-eligibility=http://localhost:9999/ws/LegacySoapService",
-    "legacy.soap.osb.endpoint.loan-approval=http://localhost:9999/ws/LoanApprovalService",
     "legacy.soap.osb.endpoint.customer-verification=http://localhost:9999/ws/CustomerVerificationService",
     "legacy.soap.wss.password=secret-pass",
     "eureka.client.enabled=false"
@@ -37,7 +36,7 @@ public class LegacySoapFlowTest {
 
         assertFalse(result.isEligible());
         assertTrue(result.getReason().contains("FICO credit score below minimum"));
-        assertEquals("Auto-Declined by BPEL Pre-Qual Gate", result.getBureauReference());
+        assertEquals("Auto-Declined by Pre-Qual Gate", result.getBureauReference());
     }
 
     @Test
@@ -55,7 +54,7 @@ public class LegacySoapFlowTest {
 
         assertTrue(result.isEligible());
         assertTrue(result.getReason().contains("underwriting criteria"));
-        assertEquals("Orchestrated Successfully via BPEL Process", result.getBureauReference());
+        assertEquals("Orchestrated Successfully via Legacy SOAP", result.getBureauReference());
     }
 
     @Test
@@ -73,7 +72,7 @@ public class LegacySoapFlowTest {
 
         assertFalse(result.isEligible());
         assertTrue(result.getReason().contains("exceeds legacy maximum limit"));
-        assertEquals("Orchestrated Successfully via BPEL Process", result.getBureauReference());
+        assertEquals("Orchestrated Successfully via Legacy SOAP", result.getBureauReference());
     }
 
     @Test
@@ -91,6 +90,6 @@ public class LegacySoapFlowTest {
 
         assertFalse(result.isEligible());
         assertTrue(result.getReason().contains("exceeds maximum limit"));
-        assertEquals("Orchestrated Successfully via BPEL Process", result.getBureauReference());
+        assertEquals("Orchestrated Successfully via Legacy SOAP", result.getBureauReference());
     }
 }

@@ -39,7 +39,7 @@ public class UnderwritingEngine {
 
         CustomerVerificationResult verification = legacyAdapterClient.verifyCustomer(request.getCustomerId());
         
-        // Calculate credit score first so we can pass it to the orchestrator
+        // Calculate credit score first so we can pass it to the legacy adapter service
         int creditScore = 700; // default FICO
         
         LoanEligibilityResult eligibility = legacyAdapterClient.checkEligibility(

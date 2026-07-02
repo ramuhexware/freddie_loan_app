@@ -16,8 +16,6 @@ public class SoapClientConfig {
     @Value("${legacy.soap.osb.endpoint.customer-verification}")
     private String customerVerificationEndpoint;
 
-    @Value("${legacy.soap.osb.endpoint.loan-approval}")
-    private String loanApprovalEndpoint;
 
     @Value("${legacy.soap.wss.username}")
     private String wssUsername;
@@ -36,12 +34,6 @@ public class SoapClientConfig {
         return interceptor;
     }
 
-    @Bean
-    public Jaxb2Marshaller loanApprovalMarshaller() {
-        Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
-        marshaller.setContextPath("com.freddieapp.legacyadapter.wsdl.loanapproval");
-        return marshaller;
-    }
 
     @Bean
     public Jaxb2Marshaller loanEligibilityMarshaller() {
@@ -57,16 +49,6 @@ public class SoapClientConfig {
         return marshaller;
     }
 
-    @Bean
-    public WebServiceTemplate loanApprovalTemplate() {
-        WebServiceTemplate template = new WebServiceTemplate();
-        template.setDefaultUri(loanApprovalEndpoint);
-        template.setMarshaller(loanApprovalMarshaller());
-        template.setUnmarshaller(loanApprovalMarshaller());
-        template.setInterceptors(new org.springframework.ws.client.support.interceptor.ClientInterceptor[]{wssInterceptor()});
-        template.setMessageSender(httpMessageSender());
-        return template;
-    }
 
     @Bean
     public WebServiceTemplate loanEligibilityTemplate() {
