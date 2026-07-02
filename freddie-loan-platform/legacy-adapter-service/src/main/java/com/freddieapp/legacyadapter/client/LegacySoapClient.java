@@ -13,7 +13,6 @@ import org.springframework.ws.soap.client.SoapFaultClientException;
 @RequiredArgsConstructor
 public class LegacySoapClient {
 
-    private final WebServiceTemplate loanApprovalTemplate;
     private final WebServiceTemplate loanEligibilityTemplate;
     private final WebServiceTemplate customerVerificationTemplate;
 
@@ -28,31 +27,46 @@ public class LegacySoapClient {
             int creditScore,
             java.math.BigDecimal annualIncome,
             java.math.BigDecimal monthlyDebt) {
-        log.info("Calling BPEL loan approval process: loanId={} customerId={} amount={}", loanId, customerId, loanAmount);
+        log.info("Calling legacy loan eligibility: loanId={} customerId={} amount={}", loanId, customerId, loanAmount);
+        
+        // 1. Credit Score Pre-qualification Gate
+        if (creditScore < 600) {
+            log.warn("Credit score below 600 pre-qual gate. Auto-declining loanId={}", loanId);
+            return LoanEligibilityResult.builder()
+                    .eligible(false)
+                    .reason("FICO credit score below minimum pre-qualification gate (600).")
+                    .bureauReference("Auto-Declined by Pre-Qual Gate")
+                    .build();
+        }
+
+        // 2. DTI Calculation
+        java.math.BigDecimal monthlyIncome = annualIncome.divide(java.math.BigDecimal.valueOf(12), 4, java.math.RoundingMode.HALF_UP);
+        java.math.BigDecimal monthlyDti = java.math.BigDecimal.ZERO;
+        if (monthlyIncome.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            monthlyDti = monthlyDebt.multiply(java.math.BigDecimal.valueOf(100)).divide(monthlyIncome, 2, java.math.RoundingMode.HALF_UP);
+        }
+
         try {
-            com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalRequest request = 
-                    new com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalRequest();
+            com.freddieapp.legacyadapter.wsdl.loaneligibility.EligibilityRequest request = 
+                    new com.freddieapp.legacyadapter.wsdl.loaneligibility.EligibilityRequest();
             request.setLoanId(loanId);
             request.setCustomerId(customerId);
-            request.setCustomerName(customerName);
             request.setLoanAmount(loanAmount);
-            request.setPropertyValue(propertyValue);
             request.setCreditScore(creditScore);
-            request.setAnnualIncome(annualIncome);
-            request.setMonthlyDebt(monthlyDebt);
+            request.setMonthlyDti(monthlyDti);
 
-            com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalResponse response = 
-                    (com.freddieapp.legacyadapter.wsdl.loanapproval.LoanApprovalResponse) loanApprovalTemplate
+            com.freddieapp.legacyadapter.wsdl.loaneligibility.EligibilityResponse response = 
+                    (com.freddieapp.legacyadapter.wsdl.loaneligibility.EligibilityResponse) loanEligibilityTemplate
                             .marshalSendAndReceive(request);
 
             return LoanEligibilityResult.builder()
-                    .eligible(response.isApproved())
-                    .reason(response.getDecisionReason())
-                    .bureauReference(response.getOrchestrationStatus())
+                    .eligible(response.isEligible())
+                    .reason(response.getComments())
+                    .bureauReference("Orchestrated Successfully via Legacy SOAP")
                     .build();
         } catch (SoapFaultClientException ex) {
-            log.error("SOAP fault from BPEL loan approval: {}", ex.getFaultStringOrReason());
-            throw new LegacySoapException("Loan approval SOAP fault: " + ex.getFaultStringOrReason(), ex);
+            log.error("SOAP fault from legacy loan eligibility: {}", ex.getFaultStringOrReason());
+            throw new LegacySoapException("Loan eligibility SOAP fault: " + ex.getFaultStringOrReason(), ex);
         }
     }
 

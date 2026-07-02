@@ -363,7 +363,6 @@ services:
       - "8088:8088"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      LEGACY_SOAP_OSB_ENDPOINT: http://osb-host:7001
       LEGACY_SOAP_WSS_USERNAME: freddie-adapter-svc
       LEGACY_SOAP_WSS_PASSWORD: ${LEGACY_WSS_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
