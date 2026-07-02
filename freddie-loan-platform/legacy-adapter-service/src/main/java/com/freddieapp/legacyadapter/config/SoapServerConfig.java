@@ -22,10 +22,6 @@ public class SoapServerConfig extends WsConfigurerAdapter {
         return new ServletRegistrationBean<>(servlet, "/ws/*");
     }
 
-    @Bean(name = "LoanApprovalService")
-    public SimpleWsdl11Definition loanApprovalWsdl() {
-        return new SimpleWsdl11Definition(new ClassPathResource("wsdl/LoanApprovalProcess.wsdl"));
-    }
 
     @Bean(name = "LegacySoapService")
     public SimpleWsdl11Definition legacySoapWsdl() {
