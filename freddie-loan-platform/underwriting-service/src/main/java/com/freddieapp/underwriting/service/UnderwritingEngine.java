@@ -79,17 +79,25 @@ public class UnderwritingEngine {
             riskLevel = RiskLevel.MEDIUM;
         }
 
-        // 4. Decisioning
-        Decision decision = Decision.APPROVED;
-        String reason = "System Approved: Criteria meets Freddie Mac lending guidelines.";
+        // 4. Decisioning (Implementing Java 21 Switch Expression Pattern Matching & Record Patterns)
+        record DecisionCriteria(RiskLevel riskLevel, boolean eligible, String verificationRisk) {}
+        record DecisionInfo(Decision decision, String reason) {}
 
-        if (riskLevel == RiskLevel.CRITICAL || !eligibility.isEligible()) {
-            decision = Decision.DECLINED;
-            reason = "System Declined: " + (eligibility.isEligible() ? "Exceeds risk thresholds." : eligibility.getReason());
-        } else if (riskLevel == RiskLevel.HIGH || "HIGH".equals(verification.getRiskLevel())) {
-            decision = Decision.REFERRED;
-            reason = "System Referred: Requires manual underwriting review due to elevated risk indicators.";
-        }
+        DecisionCriteria criteria = new DecisionCriteria(riskLevel, eligibility.isEligible(), verification.getRiskLevel());
+
+        DecisionInfo decisionInfo = switch (criteria) {
+            case DecisionCriteria(var rl, var el, var vr) when !el -> 
+                new DecisionInfo(Decision.DECLINED, "System Declined: " + eligibility.getReason());
+            case DecisionCriteria(var rl, var el, var vr) when rl == RiskLevel.CRITICAL -> 
+                new DecisionInfo(Decision.DECLINED, "System Declined: Exceeds risk thresholds.");
+            case DecisionCriteria(var rl, var el, var vr) when rl == RiskLevel.HIGH || "HIGH".equals(vr) -> 
+                new DecisionInfo(Decision.REFERRED, "System Referred: Requires manual underwriting review due to elevated risk indicators.");
+            default -> 
+                new DecisionInfo(Decision.APPROVED, "System Approved: Criteria meets Freddie Mac lending guidelines.");
+        };
+
+        Decision decision = decisionInfo.decision();
+        String reason = decisionInfo.reason();
 
         String assessmentId = UUID.randomUUID().toString();
         UnderwritingAssessment assessment = UnderwritingAssessment.builder()
@@ -202,6 +210,13 @@ public class UnderwritingEngine {
                     .build());
 
             if (remainingBalanceVal <= 0) break;
+        }
+
+        // Using Java 21 Sequenced Collections to log first and last payment details
+        if (!schedule.isEmpty()) {
+            log.info("Amortization schedule calculated: firstPayment={}, lastPaymentRemainingPrincipal={}",
+                    schedule.getFirst().getTotalMonthlyPayment(),
+                    schedule.getLast().getRemainingPrincipal());
         }
 
         UnderwritingResponse response = toResponse(saved);

@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 LABEL service="underwriting-service"
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app

@@ -40,18 +40,22 @@ The platform uses a hybrid communication topology combining synchronous REST end
 
 ## ⚙️ Technology Stack
 
-*   **Runtime**: Java 17, Spring Boot 3.2.5, Spring Cloud (2023.0.1)
-*   **Frontend**: Angular 18 (TypeScript, HTML5, Vanilla CSS3)
-*   **Databases**: PostgreSQL (Customer & Card), Oracle XE (Loan Origination), IBM DB2 (Underwriting), MongoDB & GridFS (Documents)
-*   **Messaging**: Apache Kafka (Real-time events), Apache ActiveMQ (JMS Queue Audits)
-*   **Orchestration**: Oracle SOA Suite (BPEL 2.0 Composite), Oracle Service Bus (OSB)
-*   **Edge Layer**: Spring Cloud Gateway, Redis, Resilience4j
+*   **Runtime**: Java 17 (standard modules) and Java 21 (required for `underwriting-service` to leverage records/switch patterns/ Loom virtual threads).
+*   **Frameworks**: Spring Boot 3.3.0, Spring Cloud 2023.0.2.
+*   **Build Tools**: Maven 3.8+ (for parent aggregator and 14 modules) & Gradle 8.x+ (specifically for `notification-service`).
+*   **Frontend**: Angular 18 (TypeScript, HTML5, Vanilla CSS3).
+*   **Databases**: PostgreSQL (Customer & Card), Oracle XE (Loan Origination), IBM DB2 (Underwriting), MongoDB & GridFS (Documents).
+*   **Messaging**: Apache Kafka (Real-time lifecycle events), Apache ActiveMQ (JMS Queue Audits).
+*   **Integration/Orchestration**: Direct SOAP mock endpoints in Java (BPEL and OSB composite XML/BPEL files have been completely removed, with business rules and DTI/credit score checks implemented directly in `legacy-adapter-service`).
+*   **Edge Layer**: Spring Cloud Gateway, Redis, Resilience4j.
 
 ---
 
-## 🧱 Project Structure & Maven Hierarchy
+## 🧱 Project Structure & Mixed Build Hierarchy
 
-The project is structured as a Maven multi-module aggregator, where all services, frontend, deployment files, and documentation live inside the root container `freddie-loan-platform`.
+The project is structured as a mixed-build architecture:
+1. **Maven Modules (14 modules)**: Grouped under the parent container `freddie-loan-platform`.
+2. **Gradle Module (`notification-service`)**: Independently built and managed using Gradle.
 
 ```
 Freddie_Style_Application/                       # Workspace root
@@ -67,12 +71,12 @@ Freddie_Style_Application/                       # Workspace root
     # ─── CORE BUSINESS SERVICES ────────────────────────────────────────────────
     ├── customer-service/                        # Customer profiles & KYC (PostgreSQL, Port: 8081)
     ├── loan-origination-service/                # Mortgage application intake (Oracle DB, Port: 8082)
-    ├── underwriting-service/                    # Rules engine & risk assessment (IBM DB2, Port: 8083)
+    ├── underwriting-service/                    # Rules engine & risk assessment (IBM DB2, Java 21, Port: 8083)
     ├── document-service/                        # Non-blocking loan document storage (MongoDB, Port: 8084)
     ├── card-service/                            # Credit/debit card management (PostgreSQL, Port: 8085)
     │
     # ─── MESSAGING, INTEGRATION & ADAPTER SERVICES ────────────────────────────
-    ├── notification-service/                    # Kafka consumer for life-cycle alerts (Port: 8086)
+    ├── notification-service/                    # Kafka consumer for life-cycle alerts (Gradle build, Port: 8086)
     ├── messaging-service/                       # ActiveMQ JMS audit trail dispatch (Port: 8087)
     ├── legacy-adapter-service/                  # SOAP legacy client bridging service (Port: 8088)
     ├── legacy-admin-portal/                     # Servlet & JSP legacy portal webapp (Port: 8089)
@@ -85,22 +89,22 @@ Freddie_Style_Application/                       # Workspace root
     └── database/                                # DDL / DML SQL and script files for all databases
 ```
 
-### Parent-Child POM Relationships
-*   **Root Aggregator POM (`pom.xml`)**: Serves as the central parent POM (`com.freddieapp:freddie-loan-platform`). It inherits from `spring-boot-starter-parent` (version `3.2.5`) and consolidates versions for all common dependencies (e.g., Spring Cloud, Lombok, Springdoc, Resilience4j) under `<properties>` and `<dependencyManagement>`.
-*   **Child Modules**: All 13 child modules (including `appraisal-service` and `funding-service`) contain a `pom.xml` pointing back to the root POM as their `<parent>`, ensuring uniform compilation configurations, plugin dependencies, and version controls.
+### Parent-Child Relationships
+*   **Root Aggregator POM (`pom.xml`)**: Serves as the central parent POM (`com.freddieapp:freddie-loan-platform`). It inherits from `spring-boot-starter-parent` (version `3.3.0`) and controls common dependency versions (e.g. Spring Cloud `2023.0.2`, Lombok, resilience4j) for all Maven children.
+*   **Notification Service Gradle Configuration**: Built with `notification-service/build.gradle` and `notification-service/settings.gradle` targeting Java 17 and Spring Boot 3.3.0.
 
 ---
 
 ## 🔧 Configuration Management & Profiles
 
-The platform utilizes a modern, split-profile `.properties` configuration strategy for all 13 Spring Boot services. It strictly avoids `.yml` files to align with properties-driven environment management.
+The platform utilizes a modern, split-profile `.properties` configuration strategy for all Spring Boot services. It strictly avoids `.yml` files to align with properties-driven environment management.
 
 Each microservice contains:
-1. **`application.properties`**: Contains all common, environment-agnostic system values (e.g., server port, Spring application name, Eureka registration configs, circuit breaker thresholds, logging patterns).
-2. **`application-local.properties`** & **`application.local.properties`**: Contains local, developer-specific connection strings and credentials (e.g., PostgreSQL/Oracle/DB2/MongoDB connection URLs, usernames, passwords, local Apache Kafka bootstrap servers, ActiveMQ brokers, and Zipkin tracer endpoints).
+1. **`application.properties`**: Contains all common, environment-agnostic system values.
+2. **`application-local.properties`** & **`application.local.properties`**: Contains local, developer-specific connection strings and credentials (e.g. databases, local Kafka bootstrap servers, ActiveMQ brokers).
 
 ### Running with active local profile:
-When launching any service locally, make sure to activate the `local` profile to merge these properties:
+When launching any Maven service locally, make sure to activate the `local` profile to merge these properties:
 ```bash
 # Run with local profile activated
 mvn spring-boot:run -pl :customer-service -Dspring.profiles.active=local
@@ -110,26 +114,36 @@ mvn spring-boot:run -pl :customer-service -Dspring.profiles.active=local
 
 ## 🚀 Local Build & Execution Guide
 
-Follow these steps to compile the multi-module Maven parent-child project and run it locally.
+Follow these steps to compile the projects and run them locally.
 
 ### Prerequisites
-*   **Java Runtime**: JDK 17 (set `JAVA_HOME` environment variable)
-*   **Build Tool**: Maven 3.8+ or use the Maven wrapper
+*   **Java Runtime**: JDK 17 (standard modules) and JDK 21 (required for `underwriting-service`). Ensure your `JAVA_HOME` or active shell supports compilation using JDK 21.
+*   **Build Tools**: Maven 3.8+ and Gradle 8.x+
 *   **UI Tooling**: Node.js 18+ & npm
 *   **Containerization**: Docker Desktop & Docker Compose
 
 ---
 
-### Step 1: Build the Maven Backend Modules
-Run the clean and package command on the root aggregator POM to build all 13 Java projects:
-```bash
-# Navigate to the consolidated project folder
-cd freddie-loan-platform
+### Step 1: Build the Backend Modules (Maven & Gradle)
+1. **Build Maven-managed modules**:
+   Run the clean and package command on the root aggregator POM to build the 14 Java modules:
+   ```bash
+   # Navigate to the consolidated project folder
+   cd freddie-loan-platform
 
-# Compile and package all 13 modules at once
-mvn clean package -DskipTests
-```
-This builds fat-jars for all services under their respective `target/` directories (e.g., `eureka-server/target/eureka-server-1.0.0-SNAPSHOT.jar`).
+   # Compile and package all Maven modules
+   mvn clean package -DskipTests
+   ```
+   This builds fat-jars under their respective `target/` directories (e.g., `eureka-server/target/eureka-server-1.0.0-SNAPSHOT.jar`).
+
+2. **Build Gradle-managed module**:
+   Navigate to the `notification-service` directory and build:
+   ```bash
+   cd notification-service
+   gradle clean build -x test
+   cd ..
+   ```
+   This compiles and packs the notification application using Gradle.
 
 ---
 
