@@ -52,6 +52,7 @@
         <module>appraisal-service</module>
         <module>funding-service</module>
         <module>report-service</module>
+        <module>appian-service</module>
     </modules>
 
     <!-- ============================================================ -->
