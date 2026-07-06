@@ -76,6 +76,7 @@ Freddie_Style_Application/                       # Workspace root
     ├── card-service/                            # Credit/debit card management (PostgreSQL, Port: 8085)
     │
     # ─── MESSAGING, INTEGRATION & ADAPTER SERVICES ────────────────────────────
+    ├── appian-service/                          # Appian BPM Orchestration & Integration Service (Port: 8093)
     ├── notification-service/                    # Kafka consumer for life-cycle alerts (Gradle build, Port: 8086)
     ├── messaging-service/                       # ActiveMQ JMS audit trail dispatch (Port: 8087)
     ├── legacy-adapter-service/                  # SOAP legacy client bridging service (Port: 8088)
@@ -92,6 +93,26 @@ Freddie_Style_Application/                       # Workspace root
 ### Parent-Child Relationships
 *   **Root Aggregator POM (`pom.xml`)**: Serves as the central parent POM (`com.freddieapp:freddie-loan-platform`). It inherits from `spring-boot-starter-parent` (version `3.3.0`) and controls common dependency versions (e.g. Spring Cloud `2023.0.2`, Lombok, resilience4j) for all Maven children.
 *   **Notification Service Gradle Configuration**: Built with `notification-service/build.gradle` and `notification-service/settings.gradle` targeting Java 17 and Spring Boot 3.3.0.
+
+---
+
+## 🔄 Appian BPM Workflow Integration
+
+The platform features a two-way integration with the Appian BPM Platform via the backend `appian-service`.
+
+### Key Differences: Appian Service vs. Appian Website Workflow
+
+| Feature | Backend Appian Service (`appian-service` microservice) | Appian Website / BPM Portal (Appian Platform UI & Engine) |
+|:---|:---|:---|
+| **What it is** | A backend **Integration Bridge** microservice (Spring Boot). | A low-code **BPM Platform & Web Portal** (SaaS/Cloud environment). |
+| **Primary Role** | Translates internal microservice concepts (Kafka events, Feign clients) to external REST messages, and handles incoming REST calls. | Hosts user interfaces, manages task queues, tracks SLAs, and models visual process maps. |
+| **User Interface** | None. Operates headlessly behind the API Gateway. | Rich web dashboards, record grids, and task list forms for underwriters. |
+| **Technology** | Java 17, Spring Boot, Spring Kafka, Spring Data JPA (Hibernate). | Low-code SAIL expressions, Appian Process Models, Decision Rules. |
+| **Data Audit** | Stores integration payloads and HTTP status metrics in [AppianIntegrationLog](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/entity/AppianIntegrationLog.java). | Stores process instance state, process variables, task assignments, and history. |
+
+### How the Workflow Operates
+1. **Outbound (Microservices ➔ Appian)**: Changes in loan state trigger Kafka events (to `loan-events` or `loan-lifecycle-events`). The [LoanEventListener](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/listener/LoanEventListener.java) consumes these and invokes Appian webhooks via [AppianApiClient](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/client/AppianApiClient.java) (`/process/start-loan-flow` or `/task/update-status`) to advance the Appian BPM process.
+2. **Inbound (Appian ➔ Microservices)**: Underwriters interact with the Appian Website. Actions (like manual decision overrides) trigger REST calls back to [AppianController](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/controller/AppianController.java) (via path `/api/v1/appian/**`), which delegates to core backend microservices (e.g. `loan-origination-service`, `underwriting-service`).
 
 ---
 
