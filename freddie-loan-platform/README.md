@@ -272,3 +272,21 @@ The platform is secured by a role-restricted entry point. Access to user spaces 
 2.  **Review JMS logs**: Click **Compliance & Audits** in the sidebar.
 3.  **Audit Trace Console**: Monitor the live ActiveMQ audit traces, Kafka lifecycle messages, and HMDA statistics (LTV/DTI averages).
 4.  **Logout**: Click the **Logout button** to return to the gateway.
+
+---
+
+## 🔌 Appian Integration Workflow & Comparison
+
+The project features a dedicated **Appian Integration Service** (`appian-service`) to orchestrate and synchronize loan activities with an external Appian BPM environment.
+
+### 🔄 Comparison: Appian Portal Workflow vs. Appian Service API Integration
+
+| Feature | Appian Portal/Website Workflow | Appian Service API Integration (This App) |
+| :--- | :--- | :--- |
+| **User Experience** | Users log directly into the Appian UI/portal web forms. Tasks are assigned and manually advanced within Appian workspace. | Appian operates as a system-to-system orchestrator. The user interface remains native to the Freddie Mac Home Loan Platform. |
+| **Communication** | Direct synchronous HTTP calls from Appian to downstream microservices, requiring Appian to manage retry logic and service availability. | **Hybrid Event-Driven Design**: Inbound REST requests are processed instantly by `loan-origination-service`. Downstream updates sync asynchronously via **Kafka** events. |
+| **Resilience & Coupling** | High coupling. If a microservice is down, the Appian UI process hangs or displays a task error. | Low coupling. If Appian or a microservice is down, Kafka queues events and retries delivery, preventing data loss. |
+| **Audit & Compliance** | Audit logs must be custom-built within the Appian database environment. | Immediate, structured integration logs captured natively in H2/Postgres database inside the microservice layer. |
+
+### 🛠️ Running & Verifying the Appian Integration Workflow
+Please refer to the [Walkthrough Document](file:///C:/Users/2000151301/.gemini/antigravity-ide/brain/57990f85-ce64-41ef-98f1-d65394ab9164/walkthrough.md) for step-by-step commands to register mock customers, submit test loans, and review the Appian audit logs.
