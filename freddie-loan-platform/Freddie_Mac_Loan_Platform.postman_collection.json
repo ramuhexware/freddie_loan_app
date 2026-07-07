@@ -1,0 +1,349 @@
+{
+	"info": {
+		"name": "Freddie Mac Home Loan Platform",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Customer Management API",
+			"item": [
+				{
+					"name": "Create Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+15550101\",\n    \"ssn\": \"123-456-7890\",\n    \"dateOfBirth\": \"1990-01-01\",\n    \"nationality\": \"USA\",\n    \"addressLine1\": \"123 Main St\",\n    \"city\": \"Austin\",\n    \"state\": \"TX\",\n    \"zipCode\": \"78701\"\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/customers",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search / List Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/customers/search?page=0&size=10",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"search"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/customers/{{customerId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customerId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Trigger Card Sync",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/customers/{{customerId}}/sync-cards",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customerId}}",
+								"sync-cards"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Loan Origination API",
+			"item": [
+				{
+					"name": "Submit Loan Application",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customerId}}\",\n    \"loanType\": \"PURCHASE\",\n    \"loanAmount\": 350000,\n    \"propertyValue\": 450000,\n    \"propertyAddress\": \"742 Evergreen Terrace\",\n    \"loanTermMonths\": 360\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/loans",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"loans"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Loan by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/loans/{{loanId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"loans",
+								"{{loanId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Loans by Customer ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/loans/customer/{{customerId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"loans",
+								"customer",
+								"{{customerId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Underwriting Service API",
+			"item": [
+				{
+					"name": "Evaluate Loan Rules",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/underwriting/evaluate/{{loanId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"underwriting",
+								"evaluate",
+								"{{loanId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply Underwriting Manual Override",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"decision\": \"APPROVED\",\n    \"remarks\": \"Strong assets and credit scores compensate for DTI margins.\"\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/underwriting/override/{{loanId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"underwriting",
+								"override",
+								"{{loanId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Appian Integration Service API",
+			"item": [
+				{
+					"name": "Appian Loan Intake",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customerId}}\",\n    \"loanType\": \"PURCHASE\",\n    \"loanAmount\": 430000,\n    \"propertyValue\": 560000,\n    \"propertyAddress\": \"988 Maple Ave\",\n    \"loanTermMonths\": 360\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/appian/loans",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"appian",
+								"loans"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Appian Integration Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/appian/integration-logs?page=0&size=10",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"appian",
+								"integration-logs"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Card Service API",
+			"item": [
+				{
+					"name": "Get Customer Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/v1/cards/customer/{{customerId}}",
+							"host": [
+								"{{gateway_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cards",
+								"customer",
+								"{{customerId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "gateway_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "customerId",
+			"value": "26c6da04-7374-49ba-95d6-f0f2cb39a74b",
+			"type": "string"
+		},
+		{
+			"key": "loanId",
+			"value": "b26002de-6f4a-41f3-9d05-55e1b0686b70",
+			"type": "string"
+		}
+	]
+}

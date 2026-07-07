@@ -50,6 +50,13 @@
             <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
         </dependency>
 
+        <!-- Swagger UI / OpenAPI Aggregator for Gateway -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
         <!-- Actuator + Metrics -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -114,6 +114,33 @@ The platform features a two-way integration with the Appian BPM Platform via the
 1. **Outbound (Microservices ➔ Appian)**: Changes in loan state trigger Kafka events (to `loan-events` or `loan-lifecycle-events`). The [LoanEventListener](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/listener/LoanEventListener.java) consumes these and invokes Appian webhooks via [AppianApiClient](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/client/AppianApiClient.java) (`/process/start-loan-flow` or `/task/update-status`) to advance the Appian BPM process.
 2. **Inbound (Appian ➔ Microservices)**: Underwriters interact with the Appian Website. Actions (like manual decision overrides) trigger REST calls back to [AppianController](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/java/com/freddieapp/appian/controller/AppianController.java) (via path `/api/v1/appian/**`), which delegates to core backend microservices (e.g. `loan-origination-service`, `underwriting-service`).
 
+### ⚖️ Decoupling: loan-origination-service vs. appian-service
+
+The separation of these two services follows the **Adapter / Anticorruption Layer (ACL) pattern** to keep the core mortgage domain cleanly isolated from third-party BPM workflow tooling:
+
+```
+┌─────────────────────────────────┐
+│     Appian BPM Workflow         │  ◄── (External Orchestrator / Compliance Review)
+└──────────────┬──────────────────┘
+               │ (Inbound Submission / Outbound Status Callback REST API)
+               ▼
+┌─────────────────────────────────┐
+│        appian-service           │  ◄── (Integration Adapter / Auditing / Failover)
+└──────────────┬──────────────────┘
+               │ (Synchronous API Call / Asynchronous Kafka Events)
+               ▼
+┌─────────────────────────────────┐
+│    loan-origination-service     │  ◄── (Core Business Service / Database Owner)
+└─────────────────────────────────┘
+```
+
+| Feature | `loan-origination-service` (Core Service) | `appian-service` (Integration Service) |
+| :--- | :--- | :--- |
+| **Primary Owner** | **Mortgage Domain**: Owns the database of record for loan applications (e.g., Oracle/Postgres). | **Integration Domain**: Owns the interface/adapter logic and logs connecting to external Appian BPM. |
+| **Target Clients** | Internal applications (like your **Angular Frontend Portal**) and other internal microservices. | External workflows (such as **Appian Web APIs** and third-party BPM platforms). |
+| **Responsibility** | Business rules, FICO scoring checks, loan document association, and emitting Kafka events (e.g. `SUBMITTED`, `UNDERWRITING_COMPLETED`). | Receives requests from Appian, transforms payloads, writes to an **integration audit log**, and forwards status changes back to Appian via HTTP callbacks. |
+| **Decoupling Role** | Has **zero knowledge** of Appian. It continues working even if Appian is completely down. | **Acts as a buffer**. It listens to Kafka event streams and handles retries or failover logic if Appian becomes temporarily unavailable. |
+
 ---
 
 ## 🔧 Configuration Management & Profiles
@@ -217,6 +244,29 @@ To tear down the container environments and clean volumes:
 cd deployment
 docker compose down -v
 ```
+
+---
+
+## 📖 API Documentation & Swagger UI
+
+The platform features a **Unified Swagger UI Dashboard** configured at the API Gateway level. This consolidates the OpenAPI specifications from all downstream microservices into a single user interface.
+
+### 🌐 1. Unified Swagger UI Dashboard (Recommended)
+Open your browser and navigate to:
+👉 **[http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)**
+
+In the top-right corner of the dashboard, you will find a **"Select a definition"** dropdown. From there, you can choose and explore any module's API details:
+*   **Customer Service**
+*   **Loan Origination Service**
+*   **Underwriting Service**
+*   **Appian Service**
+
+### 🔌 2. Direct Service Access (Optional)
+If you want to access the Swagger UI directly on individual microservice ports:
+*   **Customer Service**: [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) (API Docs JSON: [http://localhost:8081/api-docs](http://localhost:8081/api-docs))
+*   **Loan Origination Service**: [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html) (API Docs JSON: [http://localhost:8082/v3/api-docs](http://localhost:8082/v3/api-docs))
+*   **Underwriting Service**: [http://localhost:8083/swagger-ui/index.html](http://localhost:8083/swagger-ui/index.html) (API Docs JSON: [http://localhost:8083/v3/api-docs](http://localhost:8083/v3/api-docs))
+*   **Appian Integration Service**: [http://localhost:8093/swagger-ui/index.html](http://localhost:8093/swagger-ui/index.html) (API Docs JSON: [http://localhost:8093/v3/api-docs](http://localhost:8093/v3/api-docs))
 
 ---
 
