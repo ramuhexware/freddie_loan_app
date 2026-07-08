@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE struts PUBLIC
+        "-//Apache Software Foundation//DTD Struts Configuration 2.5//EN"
+        "http://struts.apache.org/dtds/struts-2.5.dtd">
+<struts>
+
+    <!-- ============================================================ -->
+    <!-- Global Struts settings                                       -->
+    <!-- ============================================================ -->
+    <constant name="struts.devMode"                    value="false"/>
+    <constant name="struts.action.extension"           value="action,,"/>
+    <constant name="struts.ui.theme"                   value="simple"/>
+    <constant name="struts.objectFactory"              value="spring"/>
+    <constant name="struts.multipart.maxSize"          value="52428800"/>
+    <constant name="struts.enable.DynamicMethodInvocation" value="false"/>
+    <constant name="struts.i18n.encoding"              value="UTF-8"/>
+
+    <!-- ============================================================ -->
+    <!-- Global interceptor stack with Audit                          -->
+    <!-- ============================================================ -->
+    <package name="freddie-default" extends="struts-default">
+
+        <interceptors>
+            <!-- Custom audit interceptor — writes to DB2 on every action -->
+            <interceptor name="auditInterceptor"
+                         class="com.freddieapp.strutsportal.interceptor.AuditInterceptor"/>
+
+            <!-- Default stack + audit -->
+            <interceptor-stack name="freddieStack">
+                <interceptor-ref name="auditInterceptor"/>
+                <interceptor-ref name="defaultStack"/>
+            </interceptor-stack>
+        </interceptors>
+
+        <default-interceptor-ref name="freddieStack"/>
+
+        <!-- Global result mappings -->
+        <global-results>
+            <result name="error">/WEB-INF/jsp/error/500.jsp</result>
+            <result name="login" type="redirect">/login.action</result>
+        </global-results>
+
+        <global-exception-mappings>
+            <exception-mapping exception="java.lang.Exception" result="error"/>
+        </global-exception-mappings>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- Dashboard                                                    -->
+    <!-- ============================================================ -->
+    <package name="root" namespace="/" extends="freddie-default">
+
+        <!-- Index redirect -->
+        <action name="index">
+            <result type="redirect">/dashboard.action</result>
+        </action>
+
+        <action name="dashboard"
+                class="com.freddieapp.strutsportal.action.DashboardAction"
+                method="execute">
+            <result name="success">/WEB-INF/jsp/dashboard.jsp</result>
+        </action>
+
+        <action name="login"
+                class="com.freddieapp.strutsportal.action.LoginAction"
+                method="execute">
+            <result name="success" type="redirect">/dashboard.action</result>
+            <result name="input">/WEB-INF/jsp/login.jsp</result>
+        </action>
+
+        <action name="logout"
+                class="com.freddieapp.strutsportal.action.LoginAction"
+                method="logout">
+            <result name="success" type="redirect">/login.action</result>
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- Loan Actions                                                 -->
+    <!-- ============================================================ -->
+    <package name="loan" namespace="/loan" extends="freddie-default">
+
+        <!-- List all loans (DB2 + REST) -->
+        <action name="list"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="list">
+            <result name="success">/WEB-INF/jsp/loan/list.jsp</result>
+        </action>
+
+        <!-- View loan detail -->
+        <action name="detail"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="detail">
+            <result name="success">/WEB-INF/jsp/loan/detail.jsp</result>
+            <result name="notFound" type="redirect">/loan/list.action</result>
+        </action>
+
+        <!-- Show application form -->
+        <action name="applyForm"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="applyForm">
+            <result name="success">/WEB-INF/jsp/loan/apply.jsp</result>
+        </action>
+
+        <!-- Submit new loan application (REST → loan-origination-service) -->
+        <action name="save"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="save">
+            <result name="success" type="redirect">/loan/list.action</result>
+            <result name="input">/WEB-INF/jsp/loan/apply.jsp</result>
+            <result name="error">/WEB-INF/jsp/loan/apply.jsp</result>
+        </action>
+
+        <!-- Submit loan to underwriting (REST) -->
+        <action name="submitUnderwriting"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="submitUnderwriting">
+            <result name="success" type="redirect">/loan/detail.action?loanId=${loanId}</result>
+            <result name="error">/WEB-INF/jsp/loan/detail.jsp</result>
+        </action>
+
+        <!-- Approve loan (DB2 update + REST event) -->
+        <action name="approve"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="approve">
+            <result name="success" type="redirect">/loan/detail.action?loanId=${loanId}</result>
+            <result name="error">/WEB-INF/jsp/loan/detail.jsp</result>
+        </action>
+
+        <!-- Reject loan (DB2 update + REST event) -->
+        <action name="reject"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="reject">
+            <result name="success" type="redirect">/loan/detail.action?loanId=${loanId}</result>
+            <result name="error">/WEB-INF/jsp/loan/detail.jsp</result>
+        </action>
+
+        <!-- Search loans by status / date range (DB2) -->
+        <action name="search"
+                class="com.freddieapp.strutsportal.action.LoanAction"
+                method="search">
+            <result name="success">/WEB-INF/jsp/loan/list.jsp</result>
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- Customer Actions                                             -->
+    <!-- ============================================================ -->
+    <package name="customer" namespace="/customer" extends="freddie-default">
+
+        <action name="list"
+                class="com.freddieapp.strutsportal.action.CustomerAction"
+                method="list">
+            <result name="success">/WEB-INF/jsp/customer/list.jsp</result>
+        </action>
+
+        <action name="detail"
+                class="com.freddieapp.strutsportal.action.CustomerAction"
+                method="detail">
+            <result name="success">/WEB-INF/jsp/customer/detail.jsp</result>
+            <result name="notFound" type="redirect">/customer/list.action</result>
+        </action>
+
+        <action name="search"
+                class="com.freddieapp.strutsportal.action.CustomerAction"
+                method="search">
+            <result name="success">/WEB-INF/jsp/customer/search.jsp</result>
+        </action>
+
+        <action name="statsSummary"
+                class="com.freddieapp.strutsportal.action.CustomerAction"
+                method="statsSummary">
+            <result name="success">/WEB-INF/jsp/customer/stats.jsp</result>
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- Underwriting Actions                                         -->
+    <!-- ============================================================ -->
+    <package name="underwriting" namespace="/underwriting" extends="freddie-default">
+
+        <action name="list"
+                class="com.freddieapp.strutsportal.action.UnderwritingAction"
+                method="list">
+            <result name="success">/WEB-INF/jsp/underwriting/list.jsp</result>
+        </action>
+
+        <action name="review"
+                class="com.freddieapp.strutsportal.action.UnderwritingAction"
+                method="review">
+            <result name="success">/WEB-INF/jsp/underwriting/review.jsp</result>
+        </action>
+
+        <action name="saveDecision"
+                class="com.freddieapp.strutsportal.action.UnderwritingAction"
+                method="saveDecision">
+            <result name="success" type="redirect">/underwriting/list.action</result>
+            <result name="input">/WEB-INF/jsp/underwriting/review.jsp</result>
+        </action>
+
+        <action name="pendingReviews"
+                class="com.freddieapp.strutsportal.action.UnderwritingAction"
+                method="pendingReviews">
+            <result name="success">/WEB-INF/jsp/underwriting/pending.jsp</result>
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- Report Actions                                               -->
+    <!-- ============================================================ -->
+    <package name="report" namespace="/report" extends="freddie-default">
+
+        <action name="loanSummary"
+                class="com.freddieapp.strutsportal.action.ReportAction"
+                method="loanSummary">
+            <result name="success">/WEB-INF/jsp/report/loanReport.jsp</result>
+        </action>
+
+        <action name="monthlyStats"
+                class="com.freddieapp.strutsportal.action.ReportAction"
+                method="monthlyStats">
+            <result name="success">/WEB-INF/jsp/report/monthlyStats.jsp</result>
+        </action>
+
+        <action name="auditLog"
+                class="com.freddieapp.strutsportal.action.ReportAction"
+                method="auditLog">
+            <result name="success">/WEB-INF/jsp/report/auditLog.jsp</result>
+        </action>
+    </package>
+
+</struts>

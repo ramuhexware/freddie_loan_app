@@ -53,6 +53,7 @@
         <module>funding-service</module>
         <module>report-service</module>
         <module>appian-service</module>
+        <module>struts-loan-portal</module>
     </modules>
 
     <!-- ============================================================ -->
