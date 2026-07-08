@@ -1,80 +1,144 @@
-# Appian Integration Workflow Verification Walkthrough
+# Struts 2 Loan Portal — Walkthrough
 
-We have successfully resolved the routing, database migration, and Kafka listener issues that were blocking the integration. The workflow is now fully operational.
+## What Was Built
 
----
-
-## 🛠️ Resolved Issues Summary
-
-### 1. API Gateway Routing (404 Not Found)
-* **Problem**: Calling `/api/v1/appian/integration-logs` returned a `404 Not Found`.
-* **Cause**: Although the static routing logic was added to the `api-gateway` configuration, the gateway's JAR was not repackaged, and the Docker container was running an older build.
-* **Resolution**: Rebuilt `api-gateway` with `mvn clean package` and recreated the Docker container, successfully registering the `/api/v1/appian/**` routing prefixes.
-
-### 2. Customer Service Crash (Unsupported Database: PostgreSQL 16.14)
-* **Problem**: Submitting a loan returned a gateway timeout because `customer-service` was down.
-* **Cause**: Flyway 10+ modularized database drivers. `customer-service` did not declare the `flyway-database-postgresql` dependency, causing it to fail to identify PostgreSQL 16 or 15 and crash on boot.
-* **Resolution**: 
-  * Added `flyway-database-postgresql` to the dependencies in [customer-service/pom.xml](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/customer-service/pom.xml#L103-L108).
-  * Downgraded the postgres image in [docker-compose.yml](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/deployment/docker-compose.yml#L91-L95) to `postgres:15-alpine` to align with the framework dependencies.
-  * Rebuilt and restarted the stack, resulting in the successful startup and Eureka registration of `CUSTOMER-SERVICE`.
-
-### 3. Appian Kafka Consumer Failure (No Acknowledgment Available)
-* **Problem**: The Kafka event consumer (`LoanEventListener`) in `appian-service` crashed with `IllegalStateException` when trying to commit offsets.
-* **Cause**: The listener signature expected a manual `Acknowledgment` object, but the container's default ack-mode was not set to manual.
-* **Resolution**: Added `spring.kafka.listener.ack-mode=manual` to [appian-service/src/main/resources/application.properties](file:///c:/ramu/Project_Assignment/RapidX/FreddeMac_Project_RapidX/Freddie_Style_Application/freddie-loan-platform/appian-service/src/main/resources/application.properties#L19-L26) and rebuilt the service.
+A new Maven module `struts-loan-portal` was added to the `freddie-loan-platform` project.
+It is a classic **Struts 2 + Spring + DB2** web application packaged as a WAR.
 
 ---
 
-## 🚀 Verification Steps
+## Files Created
 
-Follow these steps to run a full test of the Appian integration workflow:
+### Configuration
+| File | Purpose |
+|------|---------|
+| `struts-loan-portal/pom.xml` | WAR module — Struts 2.6, Spring JDBC, HikariCP, DB2 JDBC, HttpClient 5 |
+| `WEB-INF/web.xml` | Jakarta EE 6 descriptor — Spring ContextLoader + Struts 2 filter |
+| `resources/struts.xml` | All namespaces, action mappings, audit interceptor stack |
+| `resources/db2.properties` | DB2 JDBC URL + HikariCP pool settings |
+| `resources/applicationContext.xml` | Spring context — DataSource, JdbcTemplate, TxManager, ServiceConfig |
+| `resources/db2-schema.sql` | DB2 DDL for all 4 tables + seed data |
 
-### Step 1: Create a Valid Customer
-Submit a POST request to register a customer. The system will return a valid customer UUID (e.g. `26c6da04-7374-49ba-95d6-f0f2cb39a74b`):
+### Java Source
+| Class | Role |
+|-------|------|
+| `ServiceConfig` | POJO holding microservice base URLs |
+| `LoanApplication` | Model → DB2 LOAN_APPLICATIONS |
+| `Customer` | Model → DB2 CUSTOMERS |
+| `UnderwritingDecision` | Model → DB2 UNDERWRITING_DECISIONS |
+| `AuditLog` | Model → DB2 AUDIT_LOG |
+| `ReportSummary` | DTO for aggregation query results |
+| `LoanDao` | **12 DB2 calls** — SELECT/INSERT/UPDATE/GROUP BY/JOIN |
+| `CustomerDao` | **6 DB2 calls** — SELECT/LIKE/COUNT/JOIN |
+| `UnderwritingDao` | **5 DB2 calls** — SELECT/INSERT/JOIN |
+| `AuditDao` | **3 DB2 calls** — INSERT + SELECT (REQUIRES_NEW tx) |
+| `ReportDao` | **5 DB2 calls** — Aggregations, subqueries, GROUP BY month |
+| `LoanServiceClient` | HTTP REST → loan-origination-service |
+| `CustomerServiceClient` | HTTP REST → customer-service |
+| `AuditInterceptor` | Wraps every Struts action → writes AUDIT_LOG to DB2 |
+| `DashboardAction` | KPI aggregation from DB2 |
+| `LoanAction` | Loan lifecycle — list/detail/apply/save/approve/reject |
+| `CustomerAction` | Customer list/search/detail/stats |
+| `UnderwritingAction` | Pending reviews/save decision |
+| `ReportAction` | Summary/monthly stats/audit log |
+| `LoginAction` | Session-based auth |
 
-```bash
-curl.exe -i -X POST http://localhost:8080/api/v1/customers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john.doe@example.com",
-    "phone": "+15550101",
-    "ssn": "123-456-7890",
-    "dateOfBirth": "1990-01-01",
-    "nationality": "USA",
-    "addressLine1": "123 Main St",
-    "city": "Austin",
-    "state": "TX",
-    "zipCode": "78701"
-  }'
+### JSP Views
+| File | Screen |
+|------|--------|
+| `login.jsp` | Login page (gradient card) |
+| `common/header.jsp` | Sticky nav bar (included by all pages) |
+| `dashboard.jsp` | KPI cards + recent loans + breakdown charts |
+| `loan/list.jsp` | Paginated loan table with filter bar |
+| `loan/detail.jsp` | Full loan info + UW history + inline approve/reject |
+| `loan/apply.jsp` | New loan application form |
+| `underwriting/review.jsp` | UW decision form with loan summary |
+| `customer/list.jsp` | Customer table with search + credit score color |
+| `report/loanReport.jsp` | DB2 aggregation tables + approval rate bars |
+| `report/auditLog.jsp` | Complete audit trail table |
+
+---
+
+## Total DB2 Calls Inventory
+
+| DAO | DB2 Calls | Operations |
+|-----|-----------|-----------|
+| LoanDao | 12 | SELECT (6 variants), INSERT, UPDATE (2), COUNT GROUP BY, SUM GROUP BY, FETCH FIRST |
+| CustomerDao | 6 | SELECT, LIKE search, COUNT GROUP BY, JOIN with loan count, High-risk filter |
+| UnderwritingDao | 5 | SELECT by loan, SELECT pending JOIN, INSERT, FETCH FIRST 1, SELECT by risk |
+| AuditDao | 3 | INSERT (REQUIRES_NEW), SELECT recent, SELECT by action |
+| ReportDao | 5 | GROUP BY type, GROUP BY status, YEAR/MONTH aggregate, TOP-N, Subquery approval rate |
+| **TOTAL** | **31** | |
+
+---
+
+## Integration with Microservices
+
+```
+Struts Action             → Microservice REST API
+─────────────────────────────────────────────────
+LoanAction.save()         → POST loan-origination-service:8081/api/v1/loans
+LoanAction.underwrite()   → POST loan-origination-service:8081/api/v1/loans/{id}/submit-for-underwriting
+CustomerAction.detail()   → GET  customer-service:8082/api/v1/customers/{id}
+CustomerAction.search()   → GET  customer-service:8082/api/v1/customers/search
 ```
 
-### Step 2: Submit a Loan via Appian Intake Endpoint
-Use the generated customer ID to submit a loan application. The Appian service will call the loan-origination microservice:
+All other operations use **DB2 directly** (read-heavy queries, reports, audit).
 
-```bash
-curl.exe -i -X POST http://localhost:8080/api/v1/appian/loans \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerId": "YOUR_CUSTOMER_UUID_HERE",
-    "loanType": "PURCHASE",
-    "loanAmount": 430000,
-    "propertyValue": 560000,
-    "propertyAddress": "988 Maple Ave",
-    "loanTermMonths": 360
-  }'
-```
-*Response*: Returns `201 Created` with a new `loanId` and `loanStatus: "SUBMITTED"`.
+---
 
-### Step 3: Check Appian Audit Logs
-Query the Appian Integration Logs to verify the inbound ingestion and outbound status updates (processed via Kafka events) are logged:
+## Deployment Instructions
 
-```bash
-curl.exe -i http://localhost:8080/api/v1/appian/integration-logs
+### Step 1 — Set up DB2
+```sql
+-- Run the DDL script:
+db2 -tf struts-loan-portal/src/main/resources/db2-schema.sql
 ```
 
-*Expected JSON Contents*:
-1. `INBOUND_LOAN_SUBMIT`: Logs the request payload from Appian and the `201 Created` response.
-2. `OUTBOUND_STATUS_UPDATE`: Logs the outbound status synchronization event processed by the Kafka consumer.
+### Step 2 — Install DB2 JDBC JAR into Maven
+```bash
+mvn install:install-file \
+  -Dfile=/path/to/db2jcc4.jar \
+  -DgroupId=com.ibm.db2 \
+  -DartifactId=jcc \
+  -Dversion=11.5.9.0 \
+  -Dpackaging=jar
+```
+
+### Step 3 — Configure DB2 credentials
+Edit `struts-loan-portal/src/main/resources/db2.properties`:
+```properties
+db2.url=jdbc:db2://YOUR_HOST:50000/YOUR_DB
+db2.username=YOUR_USER
+db2.password=YOUR_PASS
+```
+
+### Step 4 — Build
+```bash
+mvn clean package -pl struts-loan-portal -am
+```
+
+### Step 5 — Deploy
+```bash
+# Deploy WAR to Tomcat 10+
+cp struts-loan-portal/target/struts-loan-portal.war $TOMCAT_HOME/webapps/
+
+# OR run embedded Tomcat
+mvn tomcat7:run -pl struts-loan-portal
+```
+
+### Step 6 — Access
+```
+http://localhost:8090/struts-loan-portal/
+```
+Login: `admin / freddie123` or `officer / freddie123`
+
+---
+
+## Key Design Decisions
+
+- **AuditInterceptor** uses `PROPAGATION_REQUIRES_NEW` — audit always commits even if the business transaction fails
+- **Writes go via REST** to existing microservices to respect business logic (Kafka events, status history)
+- **Reads go direct to DB2** for speed (no REST overhead on list/search/report queries)
+- **HikariCP** pool with 20 max connections, health-check via `SELECT 1 FROM SYSIBM.SYSDUMMY1`
+- **Jakarta EE** namespace (`jakarta.*`) throughout — compatible with Tomcat 10+ and WAS Liberty

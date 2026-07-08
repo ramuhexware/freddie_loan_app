@@ -229,4 +229,141 @@
         </action>
     </package>
 
+    <!-- ============================================================ -->
+    <!-- Document Upload / Download / IO Actions                      -->
+    <!-- ============================================================ -->
+    <package name="document" namespace="/document" extends="freddie-default">
+
+        <!-- Show upload form for a loan -->
+        <action name="uploadForm"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="uploadForm">
+            <result name="success">/WEB-INF/jsp/document/upload.jsp</result>
+        </action>
+
+        <!-- Handle multipart file upload → disk IO → DB2 INSERT -->
+        <action name="upload"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="upload">
+            <interceptor-ref name="freddieStack">
+                <param name="fileUpload.maximumSize">26214400</param>
+                <param name="fileUpload.allowedTypes">application/pdf,image/jpeg,image/png,image/tiff,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document</param>
+            </interceptor-ref>
+            <result name="success" type="redirect">/document/listByLoan.action?loanId=${loanId}</result>
+            <result name="input">/WEB-INF/jsp/document/upload.jsp</result>
+            <result name="error">/WEB-INF/jsp/document/upload.jsp</result>
+        </action>
+
+        <!-- Download a single document (streams bytes to browser) -->
+        <action name="download"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="download">
+            <result name="notFound" type="redirect">/document/pendingReview.action</result>
+            <result name="error">/WEB-INF/jsp/error/500.jsp</result>
+        </action>
+
+        <!-- Download all documents as ZIP -->
+        <action name="downloadZip"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="downloadZip">
+            <result name="error">/WEB-INF/jsp/document/list.jsp</result>
+        </action>
+
+        <!-- Generate and download text report -->
+        <action name="generateReport"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="generateReport">
+            <result name="error">/WEB-INF/jsp/document/list.jsp</result>
+        </action>
+
+        <!-- List documents for a specific loan (DB2 + disk directory) -->
+        <action name="listByLoan"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="listByLoan">
+            <result name="success">/WEB-INF/jsp/document/list.jsp</result>
+        </action>
+
+        <!-- List all documents pending review -->
+        <action name="pendingReview"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="pendingReview">
+            <result name="success">/WEB-INF/jsp/document/pending.jsp</result>
+        </action>
+
+        <!-- Approve a document (DB2 UPDATE) -->
+        <action name="approve"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="approve">
+            <result name="success" type="redirect">/document/pendingReview.action</result>
+            <result name="error">/WEB-INF/jsp/document/pending.jsp</result>
+        </action>
+
+        <!-- Reject a document (DB2 UPDATE) -->
+        <action name="reject"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="reject">
+            <result name="success" type="redirect">/document/pendingReview.action</result>
+            <result name="input">/WEB-INF/jsp/document/pending.jsp</result>
+        </action>
+
+        <!-- Delete document record (DB2 DELETE + physical file removal) -->
+        <action name="delete"
+                class="com.freddieapp.strutsportal.action.DocumentAction"
+                method="delete">
+            <result name="success" type="redirect">/document/listByLoan.action?loanId=${loanId}</result>
+            <result name="error">/WEB-INF/jsp/document/list.jsp</result>
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- CSV Export Actions (File IO → HTTP streaming)                -->
+    <!-- ============================================================ -->
+    <package name="export" namespace="/export" extends="freddie-default">
+
+        <!-- Export all loans as CSV download -->
+        <action name="loans"
+                class="com.freddieapp.strutsportal.action.ExportAction"
+                method="exportLoans">
+        </action>
+
+        <!-- Export all customers as CSV download -->
+        <action name="customers"
+                class="com.freddieapp.strutsportal.action.ExportAction"
+                method="exportCustomers">
+        </action>
+
+        <!-- Export audit log as CSV download -->
+        <action name="auditLog"
+                class="com.freddieapp.strutsportal.action.ExportAction"
+                method="exportAuditLog">
+        </action>
+    </package>
+
+    <!-- ============================================================ -->
+    <!-- CSV Import Actions (FileInputStream → parse → DB2 INSERT)   -->
+    <!-- ============================================================ -->
+    <package name="import" namespace="/import" extends="freddie-default">
+
+        <!-- Show import form -->
+        <action name="importForm"
+                class="com.freddieapp.strutsportal.action.ImportAction"
+                method="importForm">
+            <result name="success">/WEB-INF/jsp/import/importForm.jsp</result>
+        </action>
+
+        <!-- Handle CSV upload + batch INSERT -->
+        <action name="importCsv"
+                class="com.freddieapp.strutsportal.action.ImportAction"
+                method="importCsv">
+            <interceptor-ref name="freddieStack">
+                <param name="fileUpload.maximumSize">10485760</param>
+                <param name="fileUpload.allowedTypes">text/csv,text/plain,application/vnd.ms-excel</param>
+            </interceptor-ref>
+            <result name="success">/WEB-INF/jsp/import/importResult.jsp</result>
+            <result name="input">/WEB-INF/jsp/import/importForm.jsp</result>
+            <result name="error">/WEB-INF/jsp/import/importForm.jsp</result>
+        </action>
+    </package>
+
 </struts>
+
