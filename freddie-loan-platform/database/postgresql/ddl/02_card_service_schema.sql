@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- TABLE: CARDS
 -- Mapped to: Card.java  (@Table(name="CARDS", schema="freddie_cards"))
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS freddie_cards."CARDS" (
+CREATE TABLE IF NOT EXISTS freddie_cards.cards (
     "ID"                UUID          DEFAULT gen_random_uuid() NOT NULL,
     "CUSTOMER_ID"       UUID          NOT NULL,
     "CARD_NUMBER"       VARCHAR(16)   NOT NULL,
@@ -54,5 +54,5 @@ END;
 $$;
 
 CREATE OR REPLACE TRIGGER trg_cards_updated_at
-    BEFORE UPDATE ON freddie_cards."CARDS"
+    BEFORE UPDATE ON freddie_cards.cards
     FOR EACH ROW EXECUTE FUNCTION freddie_cards.set_updated_at();

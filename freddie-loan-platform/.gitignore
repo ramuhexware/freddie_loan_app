@@ -261,3 +261,4 @@ __pycache__/
 # SonarQube
 .sonar/
 .scannerwork/
+/.metadata/
